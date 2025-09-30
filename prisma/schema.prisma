@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+ 
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model UserDetails {
+  id        String    @id @db.Uuid 
+  name      String
+  email     String    @unique
+  role      Role
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  licenseRequests    LicenseRequest[]   @relation("UserRequests")
+  manageRequests    LicenseRequest[]   @relation("ManagedRequests")
+  licenseAssignments LicenseAssignment[]
+  procurementRequestsCreated ProcurementRequest[] @relation("RequestedBy")
+  procurementRequestsApproved ProcurementRequest[] @relation("ApprovedBy")
+}
+
+model License {
+  id          String    @id @default(uuid())
+  name        String
+  vendor      String?
+  description String?
+  totalSeats  Int       @default(0)
+  cost        Float?
+  expiryDate  DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  licenseKeys          LicenseKey[]
+  licenseRequests      LicenseRequest[]
+  procurementRequests  ProcurementRequest[]
+}
+
+model LicenseKey {
+  id         String   @id @default(uuid())
+  licenseId  String
+  key        String?   
+  status     LicenseStatus @default(ACTIVE)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  license          License @relation(fields: [licenseId], references: [id])
+  licenseAssignments LicenseAssignment[]
+}
+
+model LicenseRequest {
+  id          String   @id @default(uuid())
+  userId      String
+  licenseId   String
+  managerId   String
+  status      RequestStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user        UserDetails    @relation("UserRequests", fields: [userId], references: [id])
+  license     License @relation(fields: [licenseId], references: [id])
+  manager     UserDetails    @relation("ManagedRequests",fields: [managerId], references: [id])
+  assignments LicenseAssignment?
+}
+
+model LicenseAssignment {
+  id               String   @id @default(uuid())
+  userId           String
+  licenseKeyId     String @unique
+  licenseRequestId String @unique
+  assignedAt       DateTime @default(now())
+
+  // Relations
+  user            UserDetails           @relation(fields: [userId], references: [id])
+  licenseKey      LicenseKey     @relation(fields: [licenseKeyId], references: [id])
+  licenseRequest  LicenseRequest @relation(fields: [licenseRequestId], references: [id])
+}
+
+model ProcurementRequest {
+  id           String   @id @default(uuid()) 
+  licenseId    String
+  requestedBy  String
+  approvedBy   String?
+  status       ProcurementStatus @default(PENDING)
+  quantity     Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  license    License @relation(fields: [licenseId], references: [id])
+  requester  UserDetails    @relation("RequestedBy", fields: [requestedBy], references: [id])
+  approver   UserDetails?   @relation("ApprovedBy", fields: [approvedBy], references: [id])
+  documents  ProcurementDocument[]
+}
+
+model ProcurementDocument {
+  id                  String   @id @default(uuid())
+  procurementRequestId String
+  fileUrl             String
+  uploadedAt          DateTime @default(now())
+
+  // Relations
+  procurementRequest ProcurementRequest @relation(fields: [procurementRequestId], references: [id])
+}
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  ADMIN
+  FINANCE
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+  FULFILLED
+}
+
+enum ProcurementStatus {
+  PENDING
+  APPROVED
+  DENIED
+  PURCHASED
+}
+
+enum LicenseStatus {
+  ACTIVE
+  INACTIVE
+  ASSIGNED
+}
