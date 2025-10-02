@@ -1,0 +1,74 @@
+[
+  {
+    "id": "1",
+    "name": "John Doe",
+    "email": "john.doe@company.com",
+    "role": "EMPLOYEE",
+    "department": "ITSG",
+    "position": "Software Engineer",
+    "managerId": "2",
+    "manager": {
+      "id": "2",
+      "name": "Jane Smith"
+    },
+    "createdAt": "2024-01-15T10:00:00Z",
+    "updatedAt": "2024-01-15T10:00:00Z"
+  },
+  {
+    "id": "2",
+    "name": "Jane Smith",
+    "email": "jane.smith@company.com",
+    "role": "MANAGER",
+    "department": "ITSG",
+    "position": "Engineering Manager",
+    "managerId": null,
+    "manager": null,
+    "createdAt": "2024-01-10T09:00:00Z",
+    "updatedAt": "2024-01-10T09:00:00Z"
+  },
+  {
+    "id": "3",
+    "name": "Bob Johnson",
+    "email": "bob.johnson@company.com",
+    "role": "ADMIN",
+    "department": "SRE",
+    "position": "System Administrator",
+    "managerId": "2",
+    "manager": {
+      "id": "2",
+      "name": "Jane Smith"
+    },
+    "createdAt": "2024-01-12T11:00:00Z",
+    "updatedAt": "2024-01-12T11:00:00Z"
+  },
+  {
+    "id": "4",
+    "name": "Alice Brown",
+    "email": "alice.brown@company.com",
+    "role": "FINANCE",
+    "department": "HR",
+    "position": "Financial Analyst",
+    "managerId": "2",
+    "manager": {
+      "id": "2",
+      "name": "Jane Smith"
+    },
+    "createdAt": "2024-01-08T08:00:00Z",
+    "updatedAt": "2024-01-08T08:00:00Z"
+  },
+  {
+    "id": "5",
+    "name": "Charlie Wilson",
+    "email": "charlie.wilson@company.com",
+    "role": "EMPLOYEE",
+    "department": "SSED",
+    "position": "DevOps Engineer",
+    "managerId": "2",
+    "manager": {
+      "id": "2",
+      "name": "Jane Smith"
+    },
+    "createdAt": "2024-01-05T14:00:00Z",
+    "updatedAt": "2024-01-05T14:00:00Z"
+  }
+]
