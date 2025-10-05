@@ -24,44 +24,40 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import useSWR from "swr";
-import { createUserAction } from "@/actions/user-management/action";
 
-import { Manager } from "@/lib/types/user";
+import { updateUserAction } from "@/actions/user-management/action";
+import { Manager, User } from "@/lib/types/user";
+import { formatDateTime } from "@/lib/utils/formatDateTime";
 import { fetcher } from "@/lib/fetcher";
+import { mutate } from "swr";
 
-interface CreateUserDrawerProps {
+interface UpdateUserDrawerProps {
+  user: User;
   children: React.ReactNode;
+  swrKey: string;
 }
 
-export function CreateUserDrawer({ children }: CreateUserDrawerProps) {
+export function UpdateUserDrawer({
+  user,
+  children,
+  swrKey,
+}: UpdateUserDrawerProps) {
   const isMobile = useIsMobile();
-  const initialState = { success: false, error: "" };
 
-  const [state, formAction, pending] = React.useActionState(
-    createUserAction,
+  const initialState = { success: false, error: "" };
+  const [state, updateUser, pending] = React.useActionState(
+    updateUserAction,
     initialState
   );
 
   const [formData, setFormData] = React.useState({
-    name: "",
-    email: "",
-    password: "",
-    department: "",
-    role: "EMPLOYEE" as Manager["role"],
-    position: "",
-    managerId: "none",
+    name: user.name,
+    email: user.email,
+    department: user.department,
+    role: user.role,
+    position: user.position || "",
+    managerId: user.manager?.id || "none",
   });
-
-  const resetForm = () =>
-    setFormData({
-      name: "",
-      email: "",
-      password: "",
-      role: "EMPLOYEE" as Manager["role"],
-      department: "",
-      position: "",
-      managerId: "none",
-    });
 
   const { data: manager, isLoading } = useSWR<Manager[]>(
     `/api/user-management/managers`,
@@ -72,8 +68,20 @@ export function CreateUserDrawer({ children }: CreateUserDrawerProps) {
     if (state.error) {
       toast.error(state.error);
     } else if (state.success) {
-      toast.success("User is created Successfully!!");
-      resetForm();
+      toast.success("User is updated Successfully!!");
+      mutate(
+        swrKey,
+        (currentData: any) => {
+          if (!currentData) return currentData;
+          return {
+            ...currentData,
+            data: currentData.data.map((u: User) =>
+              u.id === user.id ? { ...u, ...formData } : u
+            ),
+          };
+        },
+        { revalidate: true }
+      );
     }
   }, [state]);
 
@@ -86,18 +94,22 @@ export function CreateUserDrawer({ children }: CreateUserDrawerProps) {
     <Drawer direction={isMobile ? "bottom" : "right"}>
       <DrawerTrigger asChild>{children}</DrawerTrigger>
 
-      <DrawerContent className=" h-full max-h-[100vh]">
+      <DrawerContent className="h-full max-h-[100vh]">
         <DrawerHeader>
-          <DrawerTitle>Create New User</DrawerTitle>
+          <DrawerTitle>Update User</DrawerTitle>
           <DrawerDescription>
-            Fill in the details below to add a new user.
+            Update the details of the user below.
           </DrawerDescription>
         </DrawerHeader>
 
         <form
-          action={formAction}
+          action={updateUser}
           className="flex flex-col gap-4 px-4 py-2 overflow-y-auto"
         >
+          {/* Id section */}
+          <input type="hidden" name="id" value={user.id} />
+
+          {/* Name */}
           <div className="space-y-2">
             <Label htmlFor="name">Full Name</Label>
             <Input
@@ -112,11 +124,12 @@ export function CreateUserDrawer({ children }: CreateUserDrawerProps) {
             />
           </div>
 
+          {/* Email */}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
-              name="email"
               id="email"
+              name="email"
               type="email"
               required
               disabled={pending}
@@ -127,31 +140,18 @@ export function CreateUserDrawer({ children }: CreateUserDrawerProps) {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              name="password"
-              id="password"
-              type="password"
-              required
-              disabled={pending}
-              value={formData.password}
-              onChange={(e) =>
-                setFormData({ ...formData, password: e.target.value })
-              }
-            />
-          </div>
-
-          <div className="grid grid-cols-2">
-            <div className="space-y-2 ">
+          {/* Department & Role */}
+          <div className="grid grid-cols-2 gap-4 mt-3">
+            <div className="space-y-2">
               <Label htmlFor="department">Department</Label>
               <Select
                 name="department"
                 value={formData.department}
+                disabled={pending}
                 onValueChange={(v) =>
                   setFormData({
                     ...formData,
-                    department: v as Manager["department"],
+                    department: v as User["department"],
                   })
                 }
               >
@@ -168,12 +168,13 @@ export function CreateUserDrawer({ children }: CreateUserDrawerProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="position">Role</Label>
+              <Label htmlFor="role">Role</Label>
               <Select
                 name="role"
                 value={formData.role}
+                disabled={pending}
                 onValueChange={(v) =>
-                  setFormData({ ...formData, role: v as Manager["role"] })
+                  setFormData({ ...formData, role: v as User["role"] })
                 }
               >
                 <SelectTrigger>
@@ -190,11 +191,12 @@ export function CreateUserDrawer({ children }: CreateUserDrawerProps) {
             </div>
           </div>
 
+          {/* Position */}
           <div className="space-y-2">
             <Label htmlFor="position">Position</Label>
             <Input
-              name="position"
               id="position"
+              name="position"
               disabled={pending}
               value={formData.position}
               onChange={(e) =>
@@ -203,42 +205,74 @@ export function CreateUserDrawer({ children }: CreateUserDrawerProps) {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="managerId">Manager</Label>
-            <Select
-              name="managerId"
-              value={
-                isLoading ||
-                !formData.department ||
-                formData.role === "ACCOUNT_OWNER" ||
-                formData.role === "MANAGER"
-                  ? "none" // always send "none" when disabled
-                  : formData.managerId
-              }
-              disabled={
-                !formData.department ||
-                formData.role === "ACCOUNT_OWNER" ||
-                formData.role === "MANAGER"
-              }
-              onValueChange={(v) => setFormData({ ...formData, managerId: v })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select Manager" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No Manager</SelectItem>
-                {filteredManagers?.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.name} ({m.department})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* Manager & Added By */}
+          <div className="grid grid-cols-2 gap-4 mt-3">
+            <div className="space-y-2">
+              <Label htmlFor="managerId">Manager</Label>
+              <Select
+                name="managerId"
+                value={
+                  !formData.department ||
+                  formData.role === "ACCOUNT_OWNER" ||
+                  formData.role === "MANAGER"
+                    ? "none"
+                    : formData.managerId
+                }
+                disabled={
+                  isLoading ||
+                  !formData.department ||
+                  formData.role === "ACCOUNT_OWNER" ||
+                  formData.role === "MANAGER"
+                }
+                onValueChange={(v) =>
+                  setFormData({
+                    ...formData,
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Manager" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Manager</SelectItem>
+                  {filteredManagers?.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name} ({m.department})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Added By</Label>
+              <Input
+                value={user.addedBy?.name ?? "—"}
+                readOnly
+                className="text-md cursor-not-allowed"
+              />
+            </div>
           </div>
 
-          <DrawerFooter className="px-0 pb-0 flex flex-col gap-2">
+          {/* Joined & Last Updated */}
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="space-y-2">
+              <Label>Joined At</Label>
+              <span className="text-sm text-muted-foreground">
+                {formatDateTime(user.createdAt)}
+              </span>
+            </div>
+            <div className="space-y-2">
+              <Label>Last Updated At</Label>
+              <span className="text-sm text-muted-foreground">
+                {formatDateTime(user.updatedAt)}
+              </span>
+            </div>
+          </div>
+
+          <DrawerFooter className="px-0 pb-0 flex flex-col gap-2 mt-4">
             <Button type="submit" disabled={pending} className="w-full">
-              {pending ? "Creating..." : "Create User"}
+              {pending ? "Saving..." : "Update User"}
             </Button>
             <DrawerClose asChild>
               <Button type="button" variant="outline" disabled={pending}>

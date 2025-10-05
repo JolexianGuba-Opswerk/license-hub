@@ -9,44 +9,55 @@ datasource db {
 }
 
 model UserDetails {
-  id           String        @id @default(uuid()) @db.Uuid
-  name         String
-  email        String        @unique
-  role         Role
-  department   Department
-  position     String
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  managerId    String?       @db.Uuid
-  manager      UserDetails?  @relation("UserManager", fields: [managerId], references: [id])
-  subordinates UserDetails[] @relation("UserManager")
+  id               String        @id @default(uuid()) @db.Uuid
+  name             String
+  email            String        @unique
+  role             Role
+  department       Department
+  position         String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  managerId        String?       @db.Uuid
+  addedById        String?       @db.Uuid
+  licensesAdded    License[]     @relation("LicenseAddedBy")
+  licenseKeysAdded LicenseKey[]  @relation("LicenseKeyAddedBy")
+  addedBy          UserDetails?  @relation("AddedBy", fields: [addedById], references: [id])
+  addedUsers       UserDetails[] @relation("AddedBy")
+  manager          UserDetails?  @relation("UserManager", fields: [managerId], references: [id])
+  subordinates     UserDetails[] @relation("UserManager")
 }
 
 model License {
-  id          String       @id @default(uuid())
-  name        String
-  vendor      String?
-  description String?
-  totalSeats  Int          @default(0)
-  cost        Float?
-  expiryDate  DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  licenseKeys LicenseKey[]
+  id             String        @id @default(dbgenerated("gen_random_uuid()"))
+  name           String
+  vendor         String?
+  description    String?
+  totalSeats     Int           @default(0)
+  cost           Float?
+  expiryDate     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  addedById      String?       @db.Uuid
+  status         LicenseStatus @default(AVAILABLE)
+  type           LicenseType   @default(SEAT_BASED)
+  licenseAddedBy UserDetails?  @relation("LicenseAddedBy", fields: [addedById], references: [id])
+  licenseKeys    LicenseKey[]
 }
 
 model LicenseKey {
-  id        String        @id @default(uuid())
+  id        String           @id @default(dbgenerated("gen_random_uuid()"))
   licenseId String
   key       String?
-  status    LicenseStatus @default(ACTIVE)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  license   License       @relation(fields: [licenseId], references: [id])
+  status    LicenseKeyStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  addedById String?          @db.Uuid
+  addedBy   UserDetails?     @relation("LicenseKeyAddedBy", fields: [addedById], references: [id])
+  license   License          @relation(fields: [licenseId], references: [id])
 }
 
 model LicenseRequest {
-  id        String        @id @default(uuid())
+  id        String        @id @default(dbgenerated("gen_random_uuid()"))
   userId    String
   licenseId String
   managerId String
@@ -56,7 +67,7 @@ model LicenseRequest {
 }
 
 model LicenseAssignment {
-  id               String   @id @default(uuid())
+  id               String   @id @default(dbgenerated("gen_random_uuid()"))
   userId           String
   licenseKeyId     String   @unique
   licenseRequestId String   @unique
@@ -64,7 +75,7 @@ model LicenseAssignment {
 }
 
 model ProcurementRequest {
-  id          String            @id @default(uuid())
+  id          String            @id @default(dbgenerated("gen_random_uuid()"))
   licenseId   String
   requestedBy String
   approvedBy  String?
@@ -75,7 +86,7 @@ model ProcurementRequest {
 }
 
 model ProcurementDocument {
-  id                   String   @id @default(uuid())
+  id                   String   @id @default(dbgenerated("gen_random_uuid()"))
   procurementRequestId String
   fileUrl              String
   uploadedAt           DateTime @default(now())
@@ -111,7 +122,19 @@ enum ProcurementStatus {
 }
 
 enum LicenseStatus {
+  AVAILABLE
+  FULL
+  EXPIRED
+}
+
+enum LicenseKeyStatus {
   ACTIVE
   INACTIVE
   ASSIGNED
+  REVOKED
+}
+
+enum LicenseType {
+  SEAT_BASED
+  KEY_BASED
 }
