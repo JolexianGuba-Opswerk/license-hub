@@ -1,8 +1,16 @@
 "use server";
-import { createUser } from "@/data/user-management/user";
-import { createClient } from "@/lib/supabase-server";
-import { createUserSchema } from "@/schemas/user-management/createUserSchema";
+import {
+  createUser,
+  getManagers,
+  updateUser,
+} from "@/data/user-management/user";
+
+import {
+  createUserSchema,
+  updateUserSchema,
+} from "@/lib/schemas/user-management/createUserSchema";
 import { revalidatePath, revalidateTag } from "next/cache";
+import { UserManagementPermission } from "@/lib/permissions/admin/permission";
 
 type CreateUserState = {
   success: boolean;
@@ -13,19 +21,11 @@ export async function createUserAction(
   prevState: CreateUserState,
   formData: FormData
 ) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return { success: false, error: "Unauthorized" };
-  }
-
-  // Allowing all the ITSG only to create user
-  if (user.user_metadata.department !== "ITSG") {
-    return { success: false, error: "Forbidden: ITSG Only" };
+  console.log(formData);
+  // Permission Check section
+  const isPermitted = await UserManagementPermission();
+  if (!isPermitted.success || !isPermitted.data) {
+    return { success: false, error: isPermitted.error ?? "Unathorized" };
   }
 
   // ZOD validation check
@@ -33,15 +33,55 @@ export async function createUserAction(
   if (!userData.success) {
     return {
       success: false,
-      error: "Bad Request",
+      error: userData.error.issues[0].message,
     };
   }
 
   // DAL User Creation
-  const response = await createUser(userData.data);
+  const response = await createUser(userData.data, isPermitted.data);
   if (response.error || !response.data)
     return { success: false, error: response.error ?? "Something went wrong!" };
 
-  revalidateTag("users-management-table");
+  //Todo: Add push notification to account owners/managers
+
+  revalidateTag("user-management-table");
+  revalidatePath("/user-management");
   return { success: true };
+}
+
+// Update user in database and Supabase Auth
+export async function updateUserAction(
+  prevState: CreateUserState,
+  formData: FormData
+) {
+  // Update User Permission Check
+  const isPermitted = await UserManagementPermission();
+  if (!isPermitted.success || !isPermitted.data) {
+    return { success: false, error: isPermitted.error ?? "Unathorized" };
+  }
+
+  // Validate form data using Zod
+  const userData = updateUserSchema.safeParse(Object.fromEntries(formData));
+
+  if (!userData.success) {
+    return {
+      success: false,
+      error: userData.error.issues[0].message,
+    };
+  }
+
+  // Update DAL
+  const response = await updateUser(userData.data);
+  if (response.error || !response.data) {
+    return { success: false, error: response.error ?? "Something went wrong!" };
+  }
+
+  // Revalidate cache
+  revalidateTag("user-management-table");
+  revalidatePath("/user-management");
+  return { success: true };
+}
+
+export async function getManagersAction() {
+  return await getManagers();
 }

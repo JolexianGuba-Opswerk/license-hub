@@ -14,8 +14,14 @@ export const userSchema = z.object({
       name: z.string(),
     })
     .nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  addedBy: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+    })
+    .nullable(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
 });
 
 export type User = z.infer<typeof userSchema>;

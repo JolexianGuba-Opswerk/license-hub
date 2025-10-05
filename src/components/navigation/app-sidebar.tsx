@@ -42,8 +42,13 @@ const data = {
     },
     {
       title: "License Management",
-      url: "/license-management",
+      url: "/license-management?page=1",
       icon: IconListDetails,
+    },
+    {
+      title: "User Management",
+      url: "/user-management?page=1",
+      icon: IconUsers,
     },
     {
       title: "Requests",
@@ -54,11 +59,6 @@ const data = {
       title: "Procurement",
       url: "/procurement",
       icon: IconFolder,
-    },
-    {
-      title: "User Management",
-      url: "/user-management",
-      icon: IconUsers,
     },
   ],
   navSecondary: [
@@ -111,6 +111,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
+
         {/* <NavDocuments items={data.documents} /> */}
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
