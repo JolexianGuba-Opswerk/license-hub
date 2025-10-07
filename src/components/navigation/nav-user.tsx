@@ -1,9 +1,6 @@
-"use client";
-
 import {
   IconDotsVertical,
   IconLogout,
-  IconNotification,
   IconUserCircle,
 } from "@tabler/icons-react";
 
@@ -24,17 +21,30 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { logout } from "@/actions/auth/login";
+import { createClient } from "@/lib/supabase/supabase-client";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 
-export function NavUser({
-  user,
-}: {
-  user: {
-    name: string;
-    email: string;
-    avatar: string;
-  };
-}) {
+export function NavUser() {
   const { isMobile } = useSidebar();
+  const supabase = createClient();
+
+  const [user, setUser] = useState<any>(null);
+
+  console.log(user);
+  useEffect(() => {
+    const getUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
+  }, [supabase]);
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <SidebarMenu>
@@ -46,56 +56,72 @@ export function NavUser({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="h-8 w-8 rounded-lg grayscale">
-                <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                <AvatarImage src={user.user_metadata?.avatar_url ?? ""} />
+                <AvatarFallback className="rounded-lg">
+                  {user.email?.[0]?.toUpperCase() ?? "?"}
+                </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
+                <span className="truncate font-medium">
+                  {user.email ?? "Unknown User"}
+                </span>
                 <span className="text-muted-foreground truncate text-xs">
-                  {user.email}
+                  {user.user_metadata.department} - ( {user.user_metadata.role}{" "}
+                  )
                 </span>
               </div>
               <IconDotsVertical className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
+
           <DropdownMenuContent
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
             side={isMobile ? "bottom" : "right"}
             align="end"
             sideOffset={4}
           >
+            {/* User info */}
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                  <AvatarImage src={user.user_metadata?.avatar_url ?? ""} />
+                  <AvatarFallback className="rounded-lg">
+                    {user.email?.[0]?.toUpperCase() ?? "?"}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.name}</span>
+                  <span className="truncate font-medium">
+                    {user.user_metadata?.name ?? "Unknown User"}
+                  </span>
                   <span className="text-muted-foreground truncate text-xs">
                     {user.email}
                   </span>
                 </div>
               </div>
             </DropdownMenuLabel>
+
             <DropdownMenuSeparator />
+
+            {/* Account link */}
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <IconUserCircle />
-                Account
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconNotification />
-                Notifications
+              <DropdownMenuItem asChild>
+                <Link href="/account" className="flex items-center gap-2">
+                  <IconUserCircle className="size-4" />
+                  Account
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
+
             <DropdownMenuSeparator />
+
+            {/* Logout */}
             <DropdownMenuItem
               onClick={async () => {
                 await logout();
               }}
+              className="cursor-pointer"
             >
-              <IconLogout />
+              <IconLogout className="size-4" />
               Log out
             </DropdownMenuItem>
           </DropdownMenuContent>

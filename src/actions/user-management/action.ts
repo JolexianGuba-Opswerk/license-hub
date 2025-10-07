@@ -8,7 +8,7 @@ import {
 import {
   createUserSchema,
   updateUserSchema,
-} from "@/lib/schemas/user-management/createUserSchema";
+} from "@/lib/schemas/user-management/user";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { UserManagementPermission } from "@/lib/permissions/admin/permission";
 
@@ -21,7 +21,6 @@ export async function createUserAction(
   prevState: CreateUserState,
   formData: FormData
 ) {
-  console.log(formData);
   // Permission Check section
   const isPermitted = await UserManagementPermission();
   if (!isPermitted.success || !isPermitted.data) {

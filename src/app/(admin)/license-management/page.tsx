@@ -49,6 +49,7 @@ import {
   LicenseResponse,
 } from "@/lib/schemas/license-management/license";
 import { LicenseStatus, LicenseType } from "@prisma/client";
+import { Trash2Icon } from "lucide-react";
 
 export default function LicenseManagementTable() {
   const router = useRouter();
@@ -73,9 +74,8 @@ export default function LicenseManagementTable() {
     router.replace(params.toString() ? `?${params.toString()}` : "");
   };
 
-  const { data, isValidating } = useSWR<LicenseResponse>(swrKey, fetcher, {
+  const { data, isLoading, mutate } = useSWR<LicenseResponse>(swrKey, fetcher, {
     dedupingInterval: 1000 * 60 * 5,
-    revalidateOnFocus: false,
   });
 
   const totalPages = data?.meta?.totalPages || 1;
@@ -96,9 +96,9 @@ export default function LicenseManagementTable() {
   const getTypeBadge = (type: LicenseType) => {
     switch (type) {
       case "SEAT_BASED":
-        return <Badge variant="default">Seat Based</Badge>;
+        return <Badge variant="outline">Seat Based</Badge>;
       case "KEY_BASED":
-        return <Badge variant="outline">Key Based</Badge>;
+        return <Badge variant="default">Key Based</Badge>;
     }
   };
   const formatDate = (dateString: Date | undefined) => {
@@ -106,7 +106,25 @@ export default function LicenseManagementTable() {
     return new Date(dateString).toLocaleDateString();
   };
 
-  const isKeyBased = (license: License) => license.licenseKeys.length > 0;
+  const licensePercentage = (license: License) => {
+    const usagePercent =
+      license.totalSeats > 0
+        ? license.type === "KEY_BASED"
+          ? ((license._count?.licenseKeys ?? 0) / license.totalSeats) * 100
+          : ((license.totalSeats - (license.availableSeats ?? 0)) /
+              license.totalSeats) *
+            100
+        : 0;
+
+    let color = "bg-green-500";
+    if (usagePercent >= 80) {
+      color = "bg-red-500";
+    } else if (usagePercent >= 50) {
+      color = "bg-yellow-500";
+    }
+
+    return { usagePercent, color };
+  };
 
   return (
     <Tabs defaultValue="licenses" className="w-full flex-col gap-6">
@@ -151,7 +169,6 @@ export default function LicenseManagementTable() {
             <SelectContent>
               <SelectItem value="ALL">All Status</SelectItem>
               <SelectItem value="AVAILABLE">Available</SelectItem>
-              <SelectItem value="LIMITED">Limited</SelectItem>
               <SelectItem value="FULL">Full</SelectItem>
               <SelectItem value="EXPIRED">Expired</SelectItem>
             </SelectContent>
@@ -172,7 +189,7 @@ export default function LicenseManagementTable() {
           </Select>
         </div>
 
-        <CreateLicenseDrawer>
+        <CreateLicenseDrawer mutate={mutate}>
           <Button variant="outline" size="sm">
             <IconPlus className="h-4 w-4" />
             <span className="hidden lg:inline ml-2">Add License</span>
@@ -190,7 +207,7 @@ export default function LicenseManagementTable() {
               <TableRow>
                 <TableHead>License Name</TableHead>
                 <TableHead>Vendor</TableHead>
-                <TableHead>Seats</TableHead>
+                <TableHead>Available Seats</TableHead>
                 <TableHead>Cost</TableHead>
                 <TableHead>Expiry Date</TableHead>
                 <TableHead>Status</TableHead>
@@ -199,16 +216,21 @@ export default function LicenseManagementTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {!data || isValidating ? (
+              {!data || isLoading ? (
                 <TableSkeleton rows={5} cols={8} />
               ) : data?.data.length ? (
                 data.data.map((license) => (
                   <TableRow key={license.id} className="hover:bg-muted/50">
-                    <TableCell>
+                    <TableCell
+                      className="cursor-pointer"
+                      onClick={() => {
+                        router.push(`license-management/${license.id}`);
+                      }}
+                    >
                       <div className="flex flex-col">
                         <span className="font-medium">{license.name}</span>
                         {license.description && (
-                          <span className="text-sm text-muted-foreground">
+                          <span className="text-sm text-muted-foreground truncate max-w-xs">
                             {license.description}
                           </span>
                         )}
@@ -217,22 +239,19 @@ export default function LicenseManagementTable() {
                     <TableCell>{license.vendor}</TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span>
-                          {license._count?.licenseKeys || 0} /{" "}
-                          {license.totalSeats}
-                        </span>
-                        <div className="w-16 bg-secondary rounded-full h-2">
-                          <div
-                            className="bg-primary h-2 rounded-full"
-                            style={{
-                              width: `${
-                                ((license._count?.licenseKeys || 0) /
-                                  license.totalSeats) *
-                                100
-                              }%`,
-                            }}
-                          />
-                        </div>
+                        {license.availableSeats || 0} /{license.totalSeats}
+                        {(() => {
+                          const { usagePercent, color } =
+                            licensePercentage(license);
+                          return (
+                            <div className="w-16 bg-secondary rounded-full h-2">
+                              <div
+                                className={`h-2 rounded-full transition-all duration-300 ${color}`}
+                                style={{ width: `${usagePercent}%` }}
+                              />
+                            </div>
+                          );
+                        })()}
                       </div>
                     </TableCell>
                     <TableCell>{formatCurrency(license.cost)}</TableCell>
@@ -251,7 +270,7 @@ export default function LicenseManagementTable() {
                         <DropdownMenuContent align="end" className="w-48">
                           <UpdateLicenseDrawer
                             license={license}
-                            swrKey={swrKey}
+                            mutate={mutate}
                           >
                             <DropdownMenuItem
                               onSelect={(e) => e.preventDefault()}
@@ -262,10 +281,7 @@ export default function LicenseManagementTable() {
                           </UpdateLicenseDrawer>
 
                           {license.type === "KEY_BASED" && (
-                            <ManageLicenseKeysDrawer
-                              license={license}
-                              swrKey={swrKey}
-                            >
+                            <ManageLicenseKeysDrawer license={license}>
                               <DropdownMenuItem
                                 onSelect={(e) => e.preventDefault()}
                               >
@@ -277,7 +293,8 @@ export default function LicenseManagementTable() {
 
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="text-red-600">
-                            Delete License
+                            <Trash2Icon className="h-4 w-4 mr-2" />
+                            Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

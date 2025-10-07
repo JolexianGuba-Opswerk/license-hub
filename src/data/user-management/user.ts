@@ -1,75 +1,77 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import {
-  UpdateUserType,
-  UserType,
-} from "@/lib/schemas/user-management/createUserSchema";
+import { UpdateUserType, UserType } from "@/lib/schemas/user-management/user";
 import { supabaseAdmin } from "@/lib/supabase/supabase-admin";
 import { GetUsersParams, Manager } from "@/lib/types/user";
 import { unstable_cache } from "next/cache";
+import { sendNotification } from "@/lib/services/notification/notificationService";
+import { NotificationType } from "@prisma/client";
 
 // Create user in database and Supabase Auth
 export async function createUser(userData: UserType, currentUser: string) {
   // If manager is not Account Owner and Manager.
   const roleWithoutManager = ["MANAGER", "ACCOUNT_OWNER"];
-
-  if (!roleWithoutManager.includes(userData.role) && !userData.managerId) {
-    return { error: "Employee must have a manager assigned" };
-  } else if (roleWithoutManager.includes(userData.role)) {
-    // Check if there is a manager already for certain department
-    const hasManagerAlready = await prisma.userDetails.findFirst({
-      where: {
-        department: userData.department,
-        role: userData.role,
-      },
-      select: {
-        id: true,
-      },
-    });
-    if (hasManagerAlready)
-      return {
-        error: "This department already has a manager/account owner  assigned",
-      };
-  }
-
-  // Check if Manager ID exist and if they are in same department
-  if (userData?.managerId && userData.managerId !== "none") {
-    const isValidManager = await prisma.userDetails.findFirst({
-      where: {
-        id: userData.managerId,
-        department: userData.department,
-        role: "MANAGER",
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!isValidManager)
-      return {
-        error: "Please select a valid manager from the same department",
-      };
-  }
-
-  // Auth User Creation in SUPABASE AUTH
-  const { data: user, error } = await supabaseAdmin.auth.admin.createUser({
-    email: userData.email,
-    password: userData.password,
-    user_metadata: {
-      role: userData.role,
-      department: userData.department,
-      position: userData.position,
-    },
-    email_confirm: true,
-  });
-
-  if (error) {
-    return { error: error?.message ?? "Something went wrong!" };
-  }
-
-  // User Creation in Actual Database
-  const supabaseUserId = user.user.id;
   try {
+    if (!roleWithoutManager.includes(userData.role) && !userData.managerId) {
+      return { error: "Employee must have a manager assigned" };
+    } else if (roleWithoutManager.includes(userData.role)) {
+      // Check if there is a manager already for certain department
+      console.log(userData.role, userData.department);
+      const hasManagerAlready = await prisma.userDetails.findFirst({
+        where: {
+          department: userData.department,
+          role: userData.role,
+        },
+        select: {
+          id: true,
+        },
+      });
+      console.log(hasManagerAlready);
+      if (hasManagerAlready)
+        return {
+          error:
+            "This department already has a manager/account owner  assigned",
+        };
+    }
+
+    // Check if Manager ID exist and if they are in same department
+    if (userData?.managerId && userData.managerId !== "none") {
+      const isValidManager = await prisma.userDetails.findFirst({
+        where: {
+          id: userData.managerId,
+          department: userData.department,
+          role: "MANAGER",
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!isValidManager)
+        return {
+          error: "Please select a valid manager from the same department",
+        };
+    }
+
+    // Auth User Creation in SUPABASE AUTH
+    const { data: user, error } = await supabaseAdmin.auth.admin.createUser({
+      email: userData.email,
+      password: userData.password,
+      user_metadata: {
+        role: userData.role,
+        department: userData.department,
+        position: userData.position,
+      },
+      email_confirm: true,
+    });
+
+    if (error) {
+      return { error: error?.message ?? "Something went wrong!" };
+    }
+
+    // User Creation in Actual Database
+    const supabaseUserId = user.user.id;
+
     const newUser = await prisma.userDetails.create({
       data: {
         id: supabaseUserId,
@@ -81,6 +83,41 @@ export async function createUser(userData: UserType, currentUser: string) {
         addedById: currentUser,
         managerId: userData.managerId === "none" ? null : userData.managerId,
       },
+    });
+
+    // Notify each department's Admin (ADMIN, ACCOUNT_OWNERS, MANAGER)
+    const departmentAdmins = await prisma.userDetails.findMany({
+      where: {
+        department: userData.department,
+        role: {
+          in: ["ADMIN", "ACCOUNT_OWNER", "MANAGER"],
+        },
+      },
+    });
+
+    await Promise.all(
+      departmentAdmins.map((admin) =>
+        sendNotification({
+          userId: admin.id,
+          type: NotificationType.USER_ADDED,
+          payload: {
+            userName: newUser.name,
+            department: newUser.department,
+          },
+          url: `/user-management/${newUser.id}`,
+        })
+      )
+    );
+
+    // Notification for employee side
+    await sendNotification({
+      userId: newUser.id,
+      type: NotificationType.USER_ADDED,
+      payload: {
+        forUser: true,
+        department: newUser.department,
+      },
+      url: `/`,
     });
 
     return { data: newUser };
@@ -102,6 +139,9 @@ export async function updateUser(userData: UpdateUserType) {
       where: {
         department: userData.department,
         role: userData.role,
+        NOT: {
+          id: userData.id,
+        },
       },
       select: {
         id: true,
@@ -130,10 +170,11 @@ export async function updateUser(userData: UpdateUserType) {
     }
   }
 
-  // Update Supabase Auth metadata
+  // Update Supabase Auth User
   const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
     userData.id,
     {
+      email: userData.email,
       user_metadata: {
         role: userData.role,
         department: userData.department,
@@ -217,6 +258,16 @@ export function getUsers(params: GetUsersParams) {
     [`user-management-table-${JSON.stringify(params)}`],
     { tags: ["user-management-table"] }
   )();
+}
+
+export async function getUserById(id: string) {
+  return prisma.userDetails.findUnique({
+    where: { id },
+    include: {
+      manager: true,
+      addedBy: true,
+    },
+  });
 }
 
 export async function getManagers(): Promise<Manager[]> {

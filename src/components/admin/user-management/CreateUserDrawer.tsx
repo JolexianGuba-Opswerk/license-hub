@@ -31,9 +31,10 @@ import { fetcher } from "@/lib/fetcher";
 
 interface CreateUserDrawerProps {
   children: React.ReactNode;
+  mutate: () => void;
 }
 
-export function CreateUserDrawer({ children }: CreateUserDrawerProps) {
+export function CreateUserDrawer({ children, mutate }: CreateUserDrawerProps) {
   const isMobile = useIsMobile();
   const initialState = { success: false, error: "" };
 
@@ -73,6 +74,7 @@ export function CreateUserDrawer({ children }: CreateUserDrawerProps) {
       toast.error(state.error);
     } else if (state.success) {
       toast.success("User is created Successfully!!");
+      mutate();
       resetForm();
     }
   }, [state]);
