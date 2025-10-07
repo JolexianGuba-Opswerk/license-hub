@@ -84,7 +84,6 @@ export async function GET(request: NextRequest) {
     ]);
 
     const totalPages = Math.ceil(totalCount / pageSize);
-    console.log(licenses);
     return NextResponse.json({
       data: licenses,
       meta: {

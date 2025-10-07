@@ -1,0 +1,130 @@
+import { Notification } from "@/lib/schemas/notification/notification";
+
+export const mockNotifications: Notification[] = [
+  {
+    id: "1",
+    userId: "11111111-1111-1111-1111-111111111111",
+    title: "License Created",
+    message: "A new license was successfully created.",
+    type: "LICENSE_CREATED",
+    url: "/licenses/1",
+    read: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 2), // 2 mins ago
+    user: {
+      id: "11111111-1111-1111-1111-111111111111",
+      name: "Admin User",
+      email: "admin@example.com",
+      role: "ADMIN",
+      department: "IT",
+      position: "System Admin",
+    },
+  },
+  {
+    id: "2",
+    userId: "11111111-1111-1111-1111-111111111111",
+    title: "License Assigned",
+    message: "License ABC123 has been assigned to John Doe.",
+    type: "LICENSE_ASSIGNED",
+    url: "/licenses/2",
+    read: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 5), // 5 mins ago
+    user: {
+      id: "11111111-1111-1111-1111-111111111111",
+      name: "Admin User",
+      email: "admin@example.com",
+      role: "ADMIN",
+      department: "IT",
+      position: "System Admin",
+    },
+  },
+  {
+    id: "3",
+    userId: "11111111-1111-1111-1111-111111111111",
+    title: "License Expired",
+    message: "License XYZ456 expired yesterday.",
+    type: "LICENSE_EXPIRED",
+    url: "/licenses/3",
+    read: true,
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
+    user: {
+      id: "11111111-1111-1111-1111-111111111111",
+      name: "Admin User",
+      email: "admin@example.com",
+      role: "ADMIN",
+      department: "IT",
+      position: "System Admin",
+    },
+  },
+  {
+    id: "4",
+    userId: "11111111-1111-1111-1111-111111111111",
+    title: "License Requested",
+    message: "Jane Smith has requested a new license.",
+    type: "LICENSE_REQUESTED",
+    url: "/requests/1",
+    read: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 60), // 1 hour ago
+    user: {
+      id: "11111111-1111-1111-1111-111111111111",
+      name: "Admin User",
+      email: "admin@example.com",
+      role: "ADMIN",
+      department: "IT",
+      position: "System Admin",
+    },
+  },
+  {
+    id: "5",
+    userId: "11111111-1111-1111-1111-111111111111",
+    title: "Procurement Request",
+    message: "A procurement request for new software is pending approval.",
+    type: "PROCUREMENT_REQUEST",
+    url: "/procurements/1",
+    read: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 10), // 10 mins ago
+    user: {
+      id: "11111111-1111-1111-1111-111111111111",
+      name: "Admin User",
+      email: "admin@example.com",
+      role: "ADMIN",
+      department: "IT",
+      position: "System Admin",
+    },
+  },
+  {
+    id: "6",
+    userId: "11111111-1111-1111-1111-111111111111",
+    title: "New User Added",
+    message: "Mark Johnson has joined the IT department.",
+    type: "USER_ADDED",
+    url: "/users/mark-johnson",
+    read: true,
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3), // 3 hours ago
+    user: {
+      id: "11111111-1111-1111-1111-111111111111",
+      name: "Admin User",
+      email: "admin@example.com",
+      role: "ADMIN",
+      department: "IT",
+      position: "System Admin",
+    },
+  },
+  {
+    id: "7",
+    userId: "11111111-1111-1111-1111-111111111111",
+    title: "System Update",
+    message: "The system will undergo maintenance tonight at 11 PM.",
+    type: "GENERAL",
+    url: null,
+    read: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 mins ago
+    user: {
+      id: "11111111-1111-1111-1111-111111111111",
+      name: "Admin User",
+      email: "admin@example.com",
+      role: "ADMIN",
+      department: "IT",
+      position: "System Admin",
+    },
+  },
+];

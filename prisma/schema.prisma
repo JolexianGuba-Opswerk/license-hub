@@ -9,22 +9,23 @@ datasource db {
 }
 
 model UserDetails {
-  id               String        @id @default(uuid()) @db.Uuid
+  id               String         @id @default(uuid()) @db.Uuid
   name             String
-  email            String        @unique
+  email            String         @unique
   role             Role
   department       Department
   position         String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  managerId        String?       @db.Uuid
-  addedById        String?       @db.Uuid
-  licensesAdded    License[]     @relation("LicenseAddedBy")
-  licenseKeysAdded LicenseKey[]  @relation("LicenseKeyAddedBy")
-  addedBy          UserDetails?  @relation("AddedBy", fields: [addedById], references: [id])
-  addedUsers       UserDetails[] @relation("AddedBy")
-  manager          UserDetails?  @relation("UserManager", fields: [managerId], references: [id])
-  subordinates     UserDetails[] @relation("UserManager")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  managerId        String?        @db.Uuid
+  addedById        String?        @db.Uuid
+  licensesAdded    License[]      @relation("LicenseAddedBy")
+  licenseKeysAdded LicenseKey[]   @relation("LicenseKeyAddedBy")
+  Notification     Notification[]
+  addedBy          UserDetails?   @relation("AddedBy", fields: [addedById], references: [id])
+  addedUsers       UserDetails[]  @relation("AddedBy")
+  manager          UserDetails?   @relation("UserManager", fields: [managerId], references: [id])
+  subordinates     UserDetails[]  @relation("UserManager")
 }
 
 model License {
@@ -40,6 +41,7 @@ model License {
   addedById      String?       @db.Uuid
   status         LicenseStatus @default(AVAILABLE)
   type           LicenseType   @default(SEAT_BASED)
+  availableSeats Int           @default(0)
   licenseAddedBy UserDetails?  @relation("LicenseAddedBy", fields: [addedById], references: [id])
   licenseKeys    LicenseKey[]
 }
@@ -90,6 +92,28 @@ model ProcurementDocument {
   procurementRequestId String
   fileUrl              String
   uploadedAt           DateTime @default(now())
+}
+
+model Notification {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String           @db.Uuid
+  title     String
+  message   String
+  type      NotificationType
+  url       String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      UserDetails      @relation(fields: [userId], references: [id])
+}
+
+enum NotificationType {
+  LICENSE_CREATED
+  LICENSE_ASSIGNED
+  LICENSE_EXPIRED
+  LICENSE_REQUESTED
+  PROCUREMENT_REQUEST
+  USER_ADDED
+  GENERAL
 }
 
 enum Role {

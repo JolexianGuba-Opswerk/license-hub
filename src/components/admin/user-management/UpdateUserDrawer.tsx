@@ -29,18 +29,17 @@ import { updateUserAction } from "@/actions/user-management/action";
 import { Manager, User } from "@/lib/types/user";
 import { formatDateTime } from "@/lib/utils/formatDateTime";
 import { fetcher } from "@/lib/fetcher";
-import { mutate } from "swr";
 
 interface UpdateUserDrawerProps {
   user: User;
   children: React.ReactNode;
-  swrKey: string;
+  mutate: () => void;
 }
 
 export function UpdateUserDrawer({
   user,
   children,
-  swrKey,
+  mutate,
 }: UpdateUserDrawerProps) {
   const isMobile = useIsMobile();
 
@@ -61,7 +60,10 @@ export function UpdateUserDrawer({
 
   const { data: manager, isLoading } = useSWR<Manager[]>(
     `/api/user-management/managers`,
-    fetcher
+    fetcher,
+    {
+      revalidateOnFocus: false,
+    }
   );
 
   React.useEffect(() => {
@@ -69,19 +71,7 @@ export function UpdateUserDrawer({
       toast.error(state.error);
     } else if (state.success) {
       toast.success("User is updated Successfully!!");
-      mutate(
-        swrKey,
-        (currentData: any) => {
-          if (!currentData) return currentData;
-          return {
-            ...currentData,
-            data: currentData.data.map((u: User) =>
-              u.id === user.id ? { ...u, ...formData } : u
-            ),
-          };
-        },
-        { revalidate: true }
-      );
+      mutate();
     }
   }, [state]);
 
@@ -225,9 +215,7 @@ export function UpdateUserDrawer({
                   formData.role === "MANAGER"
                 }
                 onValueChange={(v) =>
-                  setFormData({
-                    ...formData,
-                  })
+                  setFormData({ ...formData, managerId: v })
                 }
               >
                 <SelectTrigger>
@@ -237,7 +225,11 @@ export function UpdateUserDrawer({
                   <SelectItem value="none">No Manager</SelectItem>
                   {filteredManagers?.map((m) => (
                     <SelectItem key={m.id} value={m.id}>
-                      {m.name} ({m.department})
+                      <div className="flex-1 overflow-hidden">
+                        <span className="block truncate text-sm">
+                          {m.name} ({m.department})
+                        </span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -249,7 +241,7 @@ export function UpdateUserDrawer({
               <Input
                 value={user.addedBy?.name ?? "—"}
                 readOnly
-                className="text-md cursor-not-allowed"
+                className="text-md cursor-not-allowed block truncate "
               />
             </div>
           </div>

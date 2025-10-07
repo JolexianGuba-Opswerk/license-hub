@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { createLicenseAction } from "@/actions/license-management/action";
+import { createLicenseAction } from "@/actions/license-management/license/action";
 import {
   Popover,
   PopoverTrigger,
@@ -25,20 +25,20 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { formatDateTime } from "@/lib/utils/formatDateTime";
+import { CreateLicense } from "@/lib/schemas/license-management/license";
+
 interface CreateLicenseDrawerProps {
   children: React.ReactNode;
+  mutate: () => void;
 }
 
-export function CreateLicenseDrawer({ children }: CreateLicenseDrawerProps) {
+export function CreateLicenseDrawer({
+  children,
+  mutate,
+}: CreateLicenseDrawerProps) {
   const isMobile = useIsMobile();
-  const initialState = { success: false, error: "" };
-
-  const [state, formAction, pending] = React.useActionState(
-    createLicenseAction,
-    initialState
-  );
-
-  const [formData, setFormData] = React.useState({
+  const [pending, setIsPending] = React.useState(false);
+  const [formData, setFormData] = React.useState<CreateLicense>({
     name: "",
     vendor: "",
     description: "",
@@ -46,6 +46,7 @@ export function CreateLicenseDrawer({ children }: CreateLicenseDrawerProps) {
     cost: 0,
     expiryDate: "",
     type: "SEAT_BASED",
+    availableSeats: 1,
   });
 
   const resetForm = () =>
@@ -57,17 +58,27 @@ export function CreateLicenseDrawer({ children }: CreateLicenseDrawerProps) {
       cost: 0,
       expiryDate: "",
       type: "SEAT_BASED",
+      availableSeats: 1,
     });
 
-  React.useEffect(() => {
-    if (state.error) {
-      toast.error(state.error);
-    } else if (state.success) {
-      toast.success("License created successfully!");
-      resetForm();
+  const handSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsPending(true);
+    try {
+      const response = await createLicenseAction(formData).finally(() => {
+        setIsPending(false);
+      });
+      if (response.error) {
+        toast.error(response.error);
+      } else if (response.success) {
+        toast.success("License created successfully!");
+        mutate();
+        resetForm();
+      }
+    } catch {
+      toast.error("Something went wrong in saving");
     }
-  }, [state]);
-
+  };
   return (
     <Drawer direction={isMobile ? "bottom" : "right"}>
       <DrawerTrigger asChild>{children}</DrawerTrigger>
@@ -81,7 +92,7 @@ export function CreateLicenseDrawer({ children }: CreateLicenseDrawerProps) {
         </DrawerHeader>
 
         <form
-          action={formAction}
+          onSubmit={handSubmit}
           className="flex flex-col gap-4 px-4 py-2 overflow-y-auto"
         >
           <div className="space-y-2">
@@ -142,12 +153,33 @@ export function CreateLicenseDrawer({ children }: CreateLicenseDrawerProps) {
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    totalSeats: Number(e.target.value) || 1,
+                    totalSeats: parseInt(e.target.value) || 1,
+                    availableSeats: parseInt(e.target.value) || 1,
                   })
                 }
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="totalSeats">Available Seats *</Label>
+              <Input
+                name="availableSeats"
+                id="availableSeats"
+                type="number"
+                min="1"
+                required
+                disabled={pending}
+                value={formData.availableSeats}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    availableSeats: parseInt(e.target.value) || 1,
+                  })
+                }
+              />
+            </div>
+          </div>
 
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="cost">Cost ($)</Label>
               <Input
@@ -157,47 +189,44 @@ export function CreateLicenseDrawer({ children }: CreateLicenseDrawerProps) {
                 step="0.01"
                 min="0"
                 disabled={pending}
-                value={Number(formData.cost)}
+                value={formData.cost}
                 onChange={(e) =>
                   setFormData({ ...formData, cost: Number(e.target.value) })
                 }
-                placeholder="0.00"
               />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-full text-left"
-                  disabled={pending}
-                >
-                  {formData.expiryDate
-                    ? formatDateTime(formData.expiryDate)
-                    : "Select a date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={
-                    formData.expiryDate
-                      ? new Date(formData.expiryDate)
-                      : undefined
-                  }
-                  onSelect={(date) =>
-                    setFormData({
-                      ...formData,
-                      expiryDate: date ? date.toISOString() : "",
-                    })
-                  }
-                  className="rounded-md border"
-                  captionLayout="dropdown"
-                />
-              </PopoverContent>
-            </Popover>
+            <div className="space-y-2">
+              <Label htmlFor="cost">Expiry Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full text-left"
+                    disabled={pending}
+                  >
+                    {formData.expiryDate
+                      ? formatDateTime(formData.expiryDate)
+                      : "Select expiry date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={new Date(formData.expiryDate)}
+                    onSelect={(date) =>
+                      setFormData({
+                        ...formData,
+                        expiryDate: date
+                          ? date.toISOString().split("T")[0]
+                          : "",
+                      })
+                    }
+                    className="rounded-md border"
+                    captionLayout="dropdown"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
 
           <div className="flex items-center justify-between space-y-2 p-4 border rounded-lg">

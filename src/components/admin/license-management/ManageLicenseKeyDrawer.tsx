@@ -15,6 +15,13 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -30,60 +37,83 @@ import useSWR from "swr";
 
 import { fetcher } from "@/lib/fetcher";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { License, LicenseKey } from "@/lib/schemas/license-management/license";
+import { LicenseKeyStatus } from "@prisma/client";
+import { addLicenseKeyAction } from "@/actions/license-management/license-key/action";
+import { TableSkeleton } from "@/components/TableSkeleton";
 
 interface ManageLicenseKeysDrawerProps {
   children: React.ReactNode;
-  license: any;
-  swrKey: string;
+  license: License;
 }
 
 export function ManageLicenseKeysDrawer({
   children,
   license,
-  swrKey,
 }: ManageLicenseKeysDrawerProps) {
   const isMobile = useIsMobile();
   const [newKey, setNewKey] = React.useState("");
-  const [keys, setKeys] = React.useState(license.licenseKeys || []);
+  const [isAdding, setIsAdding] = React.useState(false);
 
-  const { data: licenseData, mutate } = useSWR(
-    `/api/license-management/${license.id}`,
-    fetcher
-  );
+  const {
+    data: licenseData,
+    mutate,
+    isLoading,
+  } = useSWR<License>(`/api/license-management/${license.id}`, fetcher);
 
-  const currentLicense = licenseData || license;
-  const currentKeys = licenseData?.licenseKeys || keys;
-
-  const usedSeats = currentKeys.length;
-  const availableSeats = currentLicense.totalSeats - usedSeats;
+  const currentLicense = license;
+  const keys = licenseData?.licenseKeys || [];
 
   const addKey = async () => {
+    setIsAdding(true);
     if (!newKey.trim()) {
       toast.error("Please enter a license key");
       return;
     }
 
-    if (usedSeats >= currentLicense.totalSeats) {
-      toast.error("No available seats remaining");
-      return;
+    const response = await addLicenseKeyAction(license.id, newKey).finally(() =>
+      setIsAdding(false)
+    );
+    mutate();
+    if (response.error) {
+      toast.error(response.error);
+    } else if (response.success) {
+      toast.success("License key added successfully");
+      setNewKey("");
     }
-
-    // In a real app, you would call an API here
-    const tempKey = {
-      id: `temp-${Date.now()}`,
-      key: newKey,
-      status: "ACTIVE" as const,
-      createdAt: new Date().toISOString(),
-    };
-
-    setKeys((prev) => [...prev, tempKey]);
-    setNewKey("");
-    toast.success("License key added successfully");
   };
 
-  const removeKey = (keyId: string) => {
-    setKeys((prev) => prev.filter((key) => key.id !== keyId));
+  const removeKey = async (keyId: string) => {
+    mutate((prev: License | undefined) => {
+      if (!prev) return prev; // handle empty state
+      return {
+        ...prev,
+        licenseKeys: prev.licenseKeys.filter((k: LicenseKey) => k.id !== keyId),
+      };
+    }, false);
+
+    // TODO: DELETE API call
+
+    mutate();
+
     toast.success("License key removed");
+  };
+
+  const updateStatus = async (keyId: string, status: LicenseKeyStatus) => {
+    mutate((prev: License | undefined) => {
+      if (!prev) return prev; // handle empty cache
+      return {
+        ...prev,
+        licenseKeys: prev.licenseKeys.map((k: LicenseKey) =>
+          k.id === keyId ? { ...k, status } : k
+        ),
+      };
+    }, false);
+
+    // TODO: API call
+
+    mutate();
+    toast.success(`Status updated to ${status}`);
   };
 
   const getStatusBadge = (status: string) => {
@@ -91,6 +121,7 @@ export function ManageLicenseKeysDrawer({
       ACTIVE: "default",
       INACTIVE: "secondary",
       ASSIGNED: "outline",
+      REVOKED: "destructive",
     } as const;
 
     return (
@@ -101,15 +132,15 @@ export function ManageLicenseKeysDrawer({
   };
 
   return (
-    <Drawer direction={isMobile ? "bottom" : "right"}>
+    <Drawer direction={isMobile ? "bottom" : "bottom"}>
       <DrawerTrigger asChild>{children}</DrawerTrigger>
 
-      <DrawerContent className="h-full max-h-[100vh]">
+      <DrawerContent className="  px-20 ">
         <DrawerHeader>
           <DrawerTitle>Manage License Keys</DrawerTitle>
           <DrawerDescription>
-            {currentLicense.name} - {usedSeats}/{currentLicense.totalSeats}{" "}
-            seats used
+            {currentLicense.name} - {license.availableSeats}/
+            {license.totalSeats} seats available
           </DrawerDescription>
         </DrawerHeader>
 
@@ -124,51 +155,88 @@ export function ManageLicenseKeysDrawer({
                   value={newKey}
                   onChange={(e) => setNewKey(e.target.value)}
                   placeholder="Enter license key..."
-                  disabled={availableSeats <= 0}
+                  disabled={license.availableSeats <= 0}
                 />
                 <Button
                   onClick={addKey}
-                  disabled={availableSeats <= 0 || !newKey.trim()}
+                  disabled={
+                    license.availableSeats <= 0 || !newKey.trim() || isAdding
+                  }
                 >
-                  <IconPlus className="h-4 w-4" />
+                  {isAdding ? "Adding..." : <IconPlus className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
-            {availableSeats <= 0 && (
-              <div className="text-sm text-destructive">
+            {license.availableSeats <= 0 && (
+              <span className="text-sm text-destructive">
                 No available seats remaining. Increase total seats to add more
                 keys.
-              </div>
+              </span>
             )}
           </div>
 
           {/* Keys List */}
-          <div className="space-y-2">
-            <Label>License Keys ({currentKeys.length})</Label>
+          <Label>License Keys ({keys.length})</Label>
+          <div className="space-y- border rounded-lg max-h-70 overflow-y-auto">
+            {" "}
             <div className="border rounded-lg">
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>
                     <TableHead>Key</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Added</TableHead>
-                    <TableHead className="w-20">Actions</TableHead>
+                    <TableHead>Date Added</TableHead>
+                    <TableHead>Added By</TableHead>
+                    <TableHead>Assigned To</TableHead>
+                    <TableHead className="w-32">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {currentKeys.length > 0 ? (
-                    currentKeys.map((licenseKey: any) => (
+                  {isLoading ? (
+                    <TableSkeleton />
+                  ) : keys.length > 0 ? (
+                    keys.map((licenseKey: LicenseKey) => (
                       <TableRow key={licenseKey.id}>
                         <TableCell className="font-mono text-sm">
                           {licenseKey.key}
                         </TableCell>
                         <TableCell>
-                          {getStatusBadge(licenseKey.status)}
+                          <Select
+                            value={licenseKey.status}
+                            onValueChange={(val) =>
+                              updateStatus(
+                                licenseKey.id,
+                                val as LicenseKeyStatus
+                              )
+                            }
+                          >
+                            <SelectTrigger className="w-[120px]">
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ACTIVE">Active</SelectItem>
+                              <SelectItem value="INACTIVE">Inactive</SelectItem>
+                              <SelectItem value="ASSIGNED">Assigned</SelectItem>
+                              <SelectItem value="REVOKED">Revoked</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {new Date(licenseKey.createdAt).toLocaleDateString()}
                         </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {licenseKey.addedBy
+                            ? `${licenseKey.addedBy.name} - ${licenseKey.addedBy.department}`
+                            : "—"}
+                        </TableCell>
                         <TableCell>
+                          {licenseKey.assignedTo ? (
+                            <span>{licenseKey.assignedTo.name}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="flex gap-2">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -183,7 +251,7 @@ export function ManageLicenseKeysDrawer({
                   ) : (
                     <TableRow>
                       <TableCell
-                        colSpan={4}
+                        colSpan={6}
                         className="h-24 text-center text-muted-foreground"
                       >
                         No license keys added yet.
@@ -195,7 +263,6 @@ export function ManageLicenseKeysDrawer({
             </div>
           </div>
         </div>
-
         <DrawerFooter className="px-4 pb-4">
           <DrawerClose asChild>
             <Button variant="outline">Close</Button>

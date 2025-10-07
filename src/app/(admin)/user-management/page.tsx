@@ -26,14 +26,22 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { IconSearch, IconPlus, IconDotsVertical } from "@tabler/icons-react";
+import {
+  IconSearch,
+  IconPlus,
+  IconDotsVertical,
+  IconEdit,
+} from "@tabler/icons-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { fetcher } from "@/lib/fetcher";
+import { GetUserResponse, userRoles } from "@/lib/types/user";
+import { Trash2Icon } from "lucide-react";
 
 export default function UserManagementTable() {
   const router = useRouter();
@@ -43,8 +51,6 @@ export default function UserManagementTable() {
   const search = searchParams.get("search") || "";
   const role = searchParams.get("role") || "ALL";
   const department = searchParams.get("department") || "ALL";
-  const swrKey = `/api/user-management?page=${page}&search=${search}&role=${role}&department=${department}`;
-  console.log("Main Table :", swrKey);
   const updateParams = (updates: Record<string, string | number | null>) => {
     const params = new URLSearchParams(searchParams.toString());
     Object.entries(updates).forEach(([key, value]) => {
@@ -57,7 +63,10 @@ export default function UserManagementTable() {
     router.replace(params.toString() ? `?${params.toString()}` : "");
   };
 
-  const { data, isValidating } = useSWR(swrKey, fetcher);
+  const swrKey = `/api/user-management?page=${page}&search=${search}&role=${role}&department=${department}`;
+  const { data, isLoading, mutate } = useSWR<GetUserResponse>(swrKey, fetcher, {
+    dedupingInterval: 1000 * 60 * 5,
+  });
 
   return (
     <Tabs defaultValue="users" className="w-full flex-col gap-6">
@@ -111,7 +120,7 @@ export default function UserManagementTable() {
           </Select>
         </div>
 
-        <CreateUserDrawer>
+        <CreateUserDrawer mutate={mutate}>
           <Button variant="outline" size="sm">
             <IconPlus className="h-4 w-4" />
             <span className="hidden lg:inline ml-2">Add User</span>
@@ -136,20 +145,19 @@ export default function UserManagementTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {!data || isValidating ? (
+              {!data || isLoading ? (
                 <TableSkeleton />
               ) : data.data.length ? (
                 data.data.map((user) => (
                   <TableRow key={user.id} className="hover:bg-muted/50">
-                    <TableCell>
-                      <UpdateUserDrawer user={user} swrKey={swrKey}>
-                        <Button variant="link" className="px-0 text-left">
-                          {user.name}
-                        </Button>
-                      </UpdateUserDrawer>
+                    <TableCell
+                      onClick={() => router.push(`user-management/${user.id}`)}
+                      className="cursor-pointer"
+                    >
+                      {user.name}
                     </TableCell>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.role}</TableCell>
+                    <TableCell>{userRoles[user.role]}</TableCell>
                     <TableCell>{user.department}</TableCell>
                     <TableCell
                       className={
@@ -166,7 +174,17 @@ export default function UserManagementTable() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-32">
+                          <UpdateUserDrawer user={user} mutate={mutate}>
+                            <DropdownMenuItem
+                              onSelect={(e) => e.preventDefault()}
+                            >
+                              <IconEdit className="h-4 w-4 mr-2" />
+                              Edit User
+                            </DropdownMenuItem>
+                          </UpdateUserDrawer>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem className="text-red-600">
+                            <Trash2Icon className="h-4 w-4 mr-2" />
                             Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>

@@ -25,3 +25,25 @@ export type Manager = {
   role: "EMPLOYEE" | "MANAGER" | "ADMIN" | "ACCOUNT_OWNER" | "FINANCE";
   department: "ITSG" | "SRE" | "HR" | "SSED";
 };
+
+export type UserRoles = {
+  [key in Manager["role"]]: string;
+};
+
+export const userRoles: UserRoles = {
+  EMPLOYEE: "Employee",
+  MANAGER: "Manager",
+  ADMIN: "Admin",
+  ACCOUNT_OWNER: "Account Owner",
+  FINANCE: "Finance",
+};
+
+export type GetUserResponse = {
+  data: User[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+};
