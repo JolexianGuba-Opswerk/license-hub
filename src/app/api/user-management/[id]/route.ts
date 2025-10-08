@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { getUserById } from "@/data/user-management/user";
 
-export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: Request, context: { params: { id: string } }) {
+  const { params } = await context;
+  if (!params?.id) {
+    return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+  }
+
   try {
-    const user = await getUserById(params.id);
+    const user = await getUserById(params?.id);
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });

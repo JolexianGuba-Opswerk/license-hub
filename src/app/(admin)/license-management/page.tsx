@@ -75,7 +75,7 @@ export default function LicenseManagementTable() {
   };
 
   const { data, isLoading, mutate } = useSWR<LicenseResponse>(swrKey, fetcher, {
-    dedupingInterval: 1000 * 60 * 5,
+    revalidateOnFocus: true,
   });
 
   const totalPages = data?.meta?.totalPages || 1;
@@ -106,24 +106,26 @@ export default function LicenseManagementTable() {
     return new Date(dateString).toLocaleDateString();
   };
 
-  const licensePercentage = (license: License) => {
-    const usagePercent =
-      license.totalSeats > 0
-        ? license.type === "KEY_BASED"
-          ? ((license._count?.licenseKeys ?? 0) / license.totalSeats) * 100
-          : ((license.totalSeats - (license.availableSeats ?? 0)) /
-              license.totalSeats) *
-            100
-        : 0;
+  const licensePercentage = (license: License, usageType: string) => {
+    let usagePercentage;
+
+    if (usageType === "AVAILABLE_SEATS") {
+      usagePercentage =
+        ((license._count?.licenseKeys ?? 0) / license.totalSeats) * 100 || 0;
+    } else {
+      usagePercentage =
+        ((license.unassignedKeysCount ?? 0) / license._count?.licenseKeys) *
+        100;
+    }
 
     let color = "bg-green-500";
-    if (usagePercent >= 80) {
+    if (usagePercentage >= 80) {
       color = "bg-red-500";
-    } else if (usagePercent >= 50) {
+    } else if (usagePercentage >= 50) {
       color = "bg-yellow-500";
     }
 
-    return { usagePercent, color };
+    return { usagePercentage, color };
   };
 
   return (
@@ -208,6 +210,7 @@ export default function LicenseManagementTable() {
                 <TableHead>License Name</TableHead>
                 <TableHead>Vendor</TableHead>
                 <TableHead>Available Seats</TableHead>
+                <TableHead>Unassigned Seats</TableHead>
                 <TableHead>Cost</TableHead>
                 <TableHead>Expiry Date</TableHead>
                 <TableHead>Status</TableHead>
@@ -239,15 +242,37 @@ export default function LicenseManagementTable() {
                     <TableCell>{license.vendor}</TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        {license.availableSeats || 0} /{license.totalSeats}
+                        {license._count.licenseKeys || 0} /{license.totalSeats}
                         {(() => {
-                          const { usagePercent, color } =
-                            licensePercentage(license);
+                          const { usagePercentage, color } = licensePercentage(
+                            license,
+                            "AVAILABLE_SEATS"
+                          );
                           return (
                             <div className="w-16 bg-secondary rounded-full h-2">
                               <div
                                 className={`h-2 rounded-full transition-all duration-300 ${color}`}
-                                style={{ width: `${usagePercent}%` }}
+                                style={{ width: `${usagePercentage}%` }}
+                              />
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        {license.unassignedKeysCount || 0} /
+                        {license._count.licenseKeys}
+                        {(() => {
+                          const { usagePercentage, color } = licensePercentage(
+                            license,
+                            "UNASSIGNED_SEATS"
+                          );
+                          return (
+                            <div className="w-16 bg-secondary rounded-full h-2">
+                              <div
+                                className={`h-2 rounded-full transition-all duration-300 ${color}`}
+                                style={{ width: `${usagePercentage}%` }}
                               />
                             </div>
                           );
@@ -280,16 +305,16 @@ export default function LicenseManagementTable() {
                             </DropdownMenuItem>
                           </UpdateLicenseDrawer>
 
-                          {license.type === "KEY_BASED" && (
-                            <ManageLicenseKeysDrawer license={license}>
-                              <DropdownMenuItem
-                                onSelect={(e) => e.preventDefault()}
-                              >
-                                <IconKey className="h-4 w-4 mr-2" />
-                                Manage Keys
-                              </DropdownMenuItem>
-                            </ManageLicenseKeysDrawer>
-                          )}
+                          <ManageLicenseKeysDrawer license={license}>
+                            <DropdownMenuItem
+                              onSelect={(e) => e.preventDefault()}
+                            >
+                              <IconKey className="h-4 w-4 mr-2" />
+                              {license.type === "KEY_BASED"
+                                ? "Manage Keys"
+                                : "Manage Seats"}
+                            </DropdownMenuItem>
+                          </ManageLicenseKeysDrawer>
 
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="text-red-600">

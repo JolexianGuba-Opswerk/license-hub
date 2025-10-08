@@ -83,9 +83,22 @@ export async function GET(request: NextRequest) {
       prisma.license.count({ where }),
     ]);
 
+    const unassignedLicenseKeyCounts = await prisma.licenseKey.groupBy({
+      by: ["licenseId"],
+      where: { NOT: { status: "ASSIGNED" } },
+      _count: { licenseId: true },
+    });
+
+    const licensesWithCounts = licenses.map((lic) => {
+      const unassigned =
+        unassignedLicenseKeyCounts.find((u) => u.licenseId === lic.id)?._count
+          .licenseId ?? 0;
+      return { ...lic, unassignedKeysCount: unassigned };
+    });
+
     const totalPages = Math.ceil(totalCount / pageSize);
     return NextResponse.json({
-      data: licenses,
+      data: licensesWithCounts,
       meta: {
         page,
         pageSize,

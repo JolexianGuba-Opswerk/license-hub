@@ -46,7 +46,6 @@ export function CreateLicenseDrawer({
     cost: 0,
     expiryDate: "",
     type: "SEAT_BASED",
-    availableSeats: 1,
   });
 
   const resetForm = () =>
@@ -58,7 +57,6 @@ export function CreateLicenseDrawer({
       cost: 0,
       expiryDate: "",
       type: "SEAT_BASED",
-      availableSeats: 1,
     });
 
   const handSubmit = async (e: React.FormEvent) => {
@@ -139,7 +137,7 @@ export function CreateLicenseDrawer({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="totalSeats">Total Seats *</Label>
               <Input
@@ -154,32 +152,10 @@ export function CreateLicenseDrawer({
                   setFormData({
                     ...formData,
                     totalSeats: parseInt(e.target.value) || 1,
-                    availableSeats: parseInt(e.target.value) || 1,
                   })
                 }
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="totalSeats">Available Seats *</Label>
-              <Input
-                name="availableSeats"
-                id="availableSeats"
-                type="number"
-                min="1"
-                required
-                disabled={pending}
-                value={formData.availableSeats}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    availableSeats: parseInt(e.target.value) || 1,
-                  })
-                }
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="cost">Cost ($)</Label>
               <Input
@@ -195,6 +171,9 @@ export function CreateLicenseDrawer({
                 }
               />
             </div>
+          </div>
+
+          <div className="grid  gap-4">
             <div className="space-y-2">
               <Label htmlFor="cost">Expiry Date</Label>
               <Popover>
@@ -223,6 +202,8 @@ export function CreateLicenseDrawer({
                     }
                     className="rounded-md border"
                     captionLayout="dropdown"
+                    fromYear={2020}
+                    toYear={2040}
                   />
                 </PopoverContent>
               </Popover>

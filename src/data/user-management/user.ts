@@ -260,6 +260,33 @@ export function getUsers(params: GetUsersParams) {
   )();
 }
 
+export async function deleteUser(id: string) {
+  try {
+    // CHECKING IF THERE IS ANY ACTIVE ASSGINED LICENSE
+    const hasAssignedLicense = await prisma.licenseAssignment.count({
+      where: {
+        status: "ACTIVE",
+        userId: id,
+      },
+    });
+    if (hasAssignedLicense) {
+      return {
+        error:
+          "Unable to delete this user because they still have active license assignments",
+      };
+    }
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
+    if (error) {
+      throw new Error(`Failed to delete user: ${error.message}`);
+    }
+    await prisma.userDetails.delete({
+      where: { id: id },
+    });
+  } catch {
+    return { error: "Something went wrong in deleting." };
+  }
+}
+
 export async function getUserById(id: string) {
   return prisma.userDetails.findUnique({
     where: { id },

@@ -43,8 +43,6 @@ export function UpdateLicenseDrawer({
 }: UpdateLicenseDrawerProps) {
   const isMobile = useIsMobile();
   const [pending, setIsPending] = React.useState(false);
-  const [canEditAvailableSeats, setCanEditAvailableSeats] =
-    React.useState(false);
 
   const formatUser = (user: License["licenseAddedBy"]): string => {
     if (!user) return "N/A";
@@ -60,7 +58,6 @@ export function UpdateLicenseDrawer({
     cost: license.cost || 0,
     expiryDate: String(license?.expiryDate),
     type: license.type,
-    availableSeats: license.availableSeats || 0,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -159,46 +156,6 @@ export function UpdateLicenseDrawer({
                 }
               />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="availableSeats">Available Seats *</Label>
-              <div className="flex gap-2">
-                <Input
-                  name="availableSeats"
-                  id="availableSeats"
-                  type="number"
-                  required
-                  disabled={pending || !canEditAvailableSeats}
-                  value={formData.availableSeats}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      availableSeats: parseInt(e.target.value) || 0,
-                    })
-                  }
-                />
-                {!canEditAvailableSeats && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      if (
-                        confirm(
-                          "Are you sure you want to edit Available Seats?"
-                        )
-                      ) {
-                        setCanEditAvailableSeats(true);
-                      }
-                    }}
-                  >
-                    Edit
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="cost">Cost ($)</Label>
               <Input
@@ -214,6 +171,9 @@ export function UpdateLicenseDrawer({
                 }
               />
             </div>
+          </div>
+
+          <div className="grid gap-4">
             <div className="space-y-2">
               <Label htmlFor="cost">Expiry Date</Label>
               <Popover>
@@ -242,6 +202,8 @@ export function UpdateLicenseDrawer({
                     }
                     className="rounded-md border"
                     captionLayout="dropdown"
+                    fromYear={2020}
+                    toYear={2040}
                   />
                 </PopoverContent>
               </Popover>

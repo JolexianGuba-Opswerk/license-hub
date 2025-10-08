@@ -66,23 +66,51 @@ export async function updateLicense(
       where: { id: licenseId },
       select: { id: true },
     });
-
     if (!isExist) return { error: "License doesn't exist" };
 
-    // Updating status section (If slot is already full and license is already Expired)
+    // UPDATING STATUS IF EXPIRED OR AVAILABLE
     let status: LicenseStatus = "AVAILABLE";
     if (
       licenseData.expiryDate &&
       new Date(licenseData.expiryDate) < new Date()
     ) {
       status = "EXPIRED";
-    } else if (licenseData.totalSeats && !licenseData.availableSeats) {
-      status = "FULL";
     } else {
       status = "AVAILABLE";
     }
 
-    // TODO: When changing type, check first if there is any associated license keys with it.
+    // CHECKING IF TYPE IS CHANGED, AND IF THE LICENSE IS ALREADY IN USED
+    // CHECKING IF LICENSE SEATS IS LOWER THAN THE CHANGE VALUE
+    const currentLicenseState = await prisma.license.findUnique({
+      where: { id: licenseId },
+      select: { type: true, totalSeats: true },
+    });
+    if (!currentLicenseState) return { error: "License not found" };
+
+    const isTypeChanging = licenseData.type !== currentLicenseState?.type;
+    const isReducingTotalSeats =
+      licenseData.totalSeats < currentLicenseState?.totalSeats;
+
+    if (isTypeChanging || isReducingTotalSeats) {
+      const usedLicenseKeysCount = await prisma.licenseKey.count({
+        where: {
+          licenseId: licenseId,
+          status: { in: ["ASSIGNED", "ACTIVE"] },
+        },
+      });
+      if (usedLicenseKeysCount > 0) {
+        if (isTypeChanging)
+          return {
+            error:
+              "Cannot update license type : some license keys are still active or assigned",
+          };
+        else if (isReducingTotalSeats)
+          return {
+            error: `Cannot reduce total seats below ${usedLicenseKeysCount} assigned keys.`,
+          };
+      }
+    }
+
     const license = await prisma.license.update({
       where: { id: licenseId },
       data: {
@@ -95,7 +123,6 @@ export async function updateLicense(
           ? new Date(licenseData.expiryDate)
           : null,
         addedById: addedBy,
-        availableSeats: licenseData.availableSeats,
         type: licenseData.type,
         status: status,
       },

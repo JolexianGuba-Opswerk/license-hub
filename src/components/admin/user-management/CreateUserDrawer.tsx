@@ -144,8 +144,8 @@ export function CreateUserDrawer({ children, mutate }: CreateUserDrawerProps) {
             />
           </div>
 
-          <div className="grid grid-cols-2">
-            <div className="space-y-2 ">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2 w-full ">
               <Label htmlFor="department">Department</Label>
               <Select
                 name="department"
@@ -157,7 +157,7 @@ export function CreateUserDrawer({ children, mutate }: CreateUserDrawerProps) {
                   })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full m">
                   <SelectValue placeholder="Department" />
                 </SelectTrigger>
                 <SelectContent>
@@ -169,7 +169,7 @@ export function CreateUserDrawer({ children, mutate }: CreateUserDrawerProps) {
               </Select>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 w-full">
               <Label htmlFor="position">Role</Label>
               <Select
                 name="role"
@@ -178,7 +178,7 @@ export function CreateUserDrawer({ children, mutate }: CreateUserDrawerProps) {
                   setFormData({ ...formData, role: v as Manager["role"] })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -205,7 +205,7 @@ export function CreateUserDrawer({ children, mutate }: CreateUserDrawerProps) {
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 w-full">
             <Label htmlFor="managerId">Manager</Label>
             <Select
               name="managerId"
@@ -224,7 +224,7 @@ export function CreateUserDrawer({ children, mutate }: CreateUserDrawerProps) {
               }
               onValueChange={(v) => setFormData({ ...formData, managerId: v })}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select Manager" />
               </SelectTrigger>
               <SelectContent>

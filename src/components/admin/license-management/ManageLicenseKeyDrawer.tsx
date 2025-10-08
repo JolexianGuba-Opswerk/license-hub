@@ -33,7 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import useSWR from "swr";
+import useSWR, { mutate as globalMutate } from "swr";
 
 import { fetcher } from "@/lib/fetcher";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
@@ -45,11 +45,13 @@ import { TableSkeleton } from "@/components/TableSkeleton";
 interface ManageLicenseKeysDrawerProps {
   children: React.ReactNode;
   license: License;
+  tableSWRKey: string;
 }
 
 export function ManageLicenseKeysDrawer({
   children,
   license,
+  tableSWRKey,
 }: ManageLicenseKeysDrawerProps) {
   const isMobile = useIsMobile();
   const [newKey, setNewKey] = React.useState("");
@@ -59,7 +61,10 @@ export function ManageLicenseKeysDrawer({
     data: licenseData,
     mutate,
     isLoading,
-  } = useSWR<License>(`/api/license-management/${license.id}`, fetcher);
+  } = useSWR<License>(
+    `/api/license-management/manage-keys/${license.id}`,
+    fetcher
+  );
 
   const currentLicense = license;
   const keys = licenseData?.licenseKeys || [];
@@ -75,6 +80,7 @@ export function ManageLicenseKeysDrawer({
       setIsAdding(false)
     );
     mutate();
+    globalMutate(tableSWRKey);
     if (response.error) {
       toast.error(response.error);
     } else if (response.success) {
@@ -135,55 +141,59 @@ export function ManageLicenseKeysDrawer({
     <Drawer direction={isMobile ? "bottom" : "bottom"}>
       <DrawerTrigger asChild>{children}</DrawerTrigger>
 
-      <DrawerContent className="  px-20 ">
+      <DrawerContent className="  px-50 ">
         <DrawerHeader>
-          <DrawerTitle>Manage License Keys</DrawerTitle>
+          <DrawerTitle>
+            {license.type === "KEY_BASED"
+              ? "Manage License Keys"
+              : "Manage License Seats"}
+          </DrawerTitle>
           <DrawerDescription>
-            {currentLicense.name} - {license.availableSeats}/
+            {currentLicense.name} - {license._count.licenseKeys}/
             {license.totalSeats} seats available
           </DrawerDescription>
         </DrawerHeader>
 
         <div className="flex flex-col gap-4 px-4 py-2 overflow-y-auto">
           {/* Add New Key Section */}
-          <div className="space-y-4 p-4 border rounded-lg">
-            <div className="space-y-2">
-              <Label htmlFor="newKey">Add New License Key</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="newKey"
-                  value={newKey}
-                  onChange={(e) => setNewKey(e.target.value)}
-                  placeholder="Enter license key..."
-                  disabled={license.availableSeats <= 0}
-                />
-                <Button
-                  onClick={addKey}
-                  disabled={
-                    license.availableSeats <= 0 || !newKey.trim() || isAdding
-                  }
-                >
-                  {isAdding ? "Adding..." : <IconPlus className="h-4 w-4" />}
-                </Button>
+          {license.type === "KEY_BASED" && (
+            <div className="space-y-4 p-4 border rounded-lg">
+              <div className="space-y-2">
+                <Label htmlFor="newKey">Add New License Key</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="newKey"
+                    value={newKey}
+                    onChange={(e) => setNewKey(e.target.value)}
+                    placeholder="Enter license key..."
+                    disabled={license.availableSeats <= 0}
+                  />
+                  <Button
+                    onClick={addKey}
+                    disabled={
+                      license.availableSeats <= 0 || !newKey.trim() || isAdding
+                    }
+                  >
+                    {isAdding ? "Adding..." : <IconPlus className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
             </div>
-            {license.availableSeats <= 0 && (
-              <span className="text-sm text-destructive">
-                No available seats remaining. Increase total seats to add more
-                keys.
-              </span>
-            )}
-          </div>
+          )}
 
           {/* Keys List */}
-          <Label>License Keys ({keys.length})</Label>
+          <Label>
+            {" "}
+            {license.type === "KEY_BASED" ? "License Keys" : "License Seats"} (
+            {keys.length})
+          </Label>
           <div className="space-y- border rounded-lg max-h-70 overflow-y-auto">
             {" "}
             <div className="border rounded-lg">
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>
-                    <TableHead>Key</TableHead>
+                    {license.type === "KEY_BASED" && <TableHead>Key</TableHead>}
                     <TableHead>Status</TableHead>
                     <TableHead>Date Added</TableHead>
                     <TableHead>Added By</TableHead>
@@ -197,9 +207,12 @@ export function ManageLicenseKeysDrawer({
                   ) : keys.length > 0 ? (
                     keys.map((licenseKey: LicenseKey) => (
                       <TableRow key={licenseKey.id}>
-                        <TableCell className="font-mono text-sm">
-                          {licenseKey.key}
-                        </TableCell>
+                        {license.type === "KEY_BASED" && (
+                          <TableCell className="font-mono text-sm">
+                            {licenseKey.key}
+                          </TableCell>
+                        )}
+
                         <TableCell>
                           <Select
                             value={licenseKey.status}
@@ -254,7 +267,9 @@ export function ManageLicenseKeysDrawer({
                         colSpan={6}
                         className="h-24 text-center text-muted-foreground"
                       >
-                        No license keys added yet.
+                        {license.type === "KEY_BASED"
+                          ? " No license keys added yet."
+                          : "No seats assigned yet"}
                       </TableCell>
                     </TableRow>
                   )}
