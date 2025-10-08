@@ -3,11 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { CreateLicense } from "@/lib/schemas/license-management/license";
 import { LicenseStatus, NotificationType } from "@prisma/client";
 import { sendNotification } from "@/lib/services/notification/notificationService";
+import { LicenseLogger } from "@/logger/auditLogger";
 
 // Create user in database and Supabase Auth
 export async function createLicense(
   licenseData: CreateLicense,
-  addedBy: string
+  addedBy: { id: string; email: string }
 ) {
   try {
     const license = await prisma.license.create({
@@ -20,12 +21,12 @@ export async function createLicense(
         expiryDate: licenseData.expiryDate
           ? new Date(licenseData.expiryDate)
           : null,
-        addedById: addedBy,
+        addedById: addedBy.id,
         type: licenseData.type,
       },
     });
 
-    // Notify each ITSG DEPARTMENT (ADMIN, ACCOUNT_OWNERS, MANAGER)
+    // PUSH NOTIFICATION OF EACH ITSG DEPARTMENT (ADMIN, ACCOUNT_OWNERS, MANAGER)
     const itsgAdmins = await prisma.userDetails.findMany({
       where: {
         department: "ITSG",
@@ -47,6 +48,12 @@ export async function createLicense(
         })
       )
     );
+    // CREATE AN AUDIT TRAIL
+    LicenseLogger.created(license.id, {
+      email: addedBy.email,
+      userId: addedBy.id,
+    });
+
     return { data: license };
   } catch (err) {
     console.error(err);
@@ -54,9 +61,30 @@ export async function createLicense(
   }
 }
 
+function getChangedFields(
+  oldData: Record<string, any>,
+  newData: Record<string, any>
+) {
+  const changes: Record<string, { old: any; new: any }> = {};
+  for (const key in newData) {
+    const oldValue = oldData[key];
+    const newValue = newData[key];
+
+    // Treat null and undefined as equal
+    if (oldValue instanceof Date && newValue instanceof Date) {
+      if (oldValue.getTime() !== newValue.getTime()) {
+        changes[key] = { old: oldValue, new: newValue };
+      }
+    } else if (oldValue !== newValue) {
+      changes[key] = { old: oldValue, new: newValue };
+    }
+  }
+  return changes;
+}
+
 export async function updateLicense(
   licenseData: CreateLicense,
-  addedBy: string
+  addedBy: { id: string; email: string }
 ) {
   try {
     const licenseId = licenseData.id;
@@ -64,8 +92,8 @@ export async function updateLicense(
 
     const isExist = await prisma.license.findUnique({
       where: { id: licenseId },
-      select: { id: true },
     });
+
     if (!isExist) return { error: "License doesn't exist" };
 
     // UPDATING STATUS IF EXPIRED OR AVAILABLE
@@ -104,7 +132,10 @@ export async function updateLicense(
             error:
               "Cannot update license type : some license keys are still active or assigned",
           };
-        else if (isReducingTotalSeats)
+        else if (
+          isReducingTotalSeats &&
+          usedLicenseKeysCount > licenseData.totalSeats
+        )
           return {
             error: `Cannot reduce total seats below ${usedLicenseKeysCount} assigned keys.`,
           };
@@ -122,11 +153,22 @@ export async function updateLicense(
         expiryDate: licenseData.expiryDate
           ? new Date(licenseData.expiryDate)
           : null,
-        addedById: addedBy,
+        addedById: addedBy.id,
         type: licenseData.type,
         status: status,
       },
     });
+
+    // PUSH NOTIFICATION OF ALL ITSG ADMINS HERE ...
+
+    // CHECKING WHAT ARE THE CHANGES
+    const changes = getChangedFields(isExist, license);
+    // AUDIT TRAIL LOGS FOR LICENSE
+    LicenseLogger.updated(
+      license.id,
+      { email: addedBy.email, userId: addedBy.id },
+      changes
+    );
     return { data: license };
   } catch (err) {
     console.error(err);

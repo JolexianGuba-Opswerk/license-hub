@@ -37,7 +37,7 @@ export async function createUserAction(
   }
 
   // DAL User Creation
-  const response = await createUser(userData.data, isPermitted.data);
+  const response = await createUser(userData.data, isPermitted.data.id);
   if (response.error || !response.data)
     return { success: false, error: response.error ?? "Something went wrong!" };
 

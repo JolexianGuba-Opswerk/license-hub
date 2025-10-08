@@ -166,12 +166,16 @@ export function ManageLicenseKeysDrawer({
                     value={newKey}
                     onChange={(e) => setNewKey(e.target.value)}
                     placeholder="Enter license key..."
-                    disabled={license.availableSeats <= 0}
+                    disabled={
+                      license.totalSeats - license._count.licenseKeys <= 0
+                    }
                   />
                   <Button
                     onClick={addKey}
                     disabled={
-                      license.availableSeats <= 0 || !newKey.trim() || isAdding
+                      license.totalSeats - license._count.licenseKeys <= 0 ||
+                      !newKey.trim() ||
+                      isAdding
                     }
                   >
                     {isAdding ? "Adding..." : <IconPlus className="h-4 w-4" />}

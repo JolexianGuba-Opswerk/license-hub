@@ -36,7 +36,10 @@ export async function createLicenseAction(formData: CreateLicense) {
   }
 
   //TODO: Add addition checking in here
-  const license = await createLicense(validatedData.data, isPermitted.data);
+  const license = await createLicense(validatedData.data, {
+    id: isPermitted.data.id,
+    email: isPermitted.data.email!,
+  });
   if (!license.data) {
     return { success: true, error: "Something went wrong" };
   }
@@ -64,7 +67,10 @@ export async function updateLicenseAction(formData: CreateLicense) {
       };
     }
 
-    const response = await updateLicense(validatedData.data, isPermitted.data);
+    const response = await updateLicense(validatedData.data, {
+      id: isPermitted.data.id,
+      email: isPermitted.data.email!,
+    });
     if (response.error || !response)
       return { success: false, error: response.error };
 
