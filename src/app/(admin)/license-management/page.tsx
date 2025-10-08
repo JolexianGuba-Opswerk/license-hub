@@ -82,7 +82,6 @@ export default function LicenseManagementTable() {
   const total = data?.meta?.total;
 
   const getLicenseStatusBadge = (license: LicenseStatus) => {
-    console.log(license);
     switch (license) {
       case "EXPIRED":
         return <Badge variant="destructive">Expired</Badge>;
@@ -305,7 +304,10 @@ export default function LicenseManagementTable() {
                             </DropdownMenuItem>
                           </UpdateLicenseDrawer>
 
-                          <ManageLicenseKeysDrawer license={license}>
+                          <ManageLicenseKeysDrawer
+                            tableSWRKey={swrKey}
+                            license={license}
+                          >
                             <DropdownMenuItem
                               onSelect={(e) => e.preventDefault()}
                             >

@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { LicenseKeyStatus } from "@prisma/client";
+import logger from "next-logger";
 
 export async function addLicenseKey(
   licenseId: string,
@@ -21,12 +22,20 @@ export async function addLicenseKey(
     if (isExist) {
       return { error: "License key already exists for this license" };
     }
-
-    const hasAvailableSeat = await prisma.license.findUnique({
-      where: { id: licenseId, availableSeats: { gt: 0 } },
-      select: { id: true },
+    const seatsUsed = await prisma.licenseKey.count({
+      where: {
+        licenseId: licenseId,
+      },
     });
-    if (!hasAvailableSeat) {
+
+    const totalSeats = await prisma.license.findFirst({
+      where: { id: licenseId },
+      select: { totalSeats: true },
+    });
+
+    if (totalSeats?.totalSeats === 0) return { error: "No total seats set" };
+
+    if ((totalSeats?.totalSeats ?? 0) - seatsUsed <= 0) {
       return { error: "No available seats remaining for this license" };
     }
 
@@ -39,16 +48,6 @@ export async function addLicenseKey(
       },
     });
 
-    if (newKey) {
-      await prisma.license.update({
-        where: { id: licenseId },
-        data: {
-          availableSeats: {
-            decrement: 1,
-          },
-        },
-      });
-    }
     return { data: newKey };
   } catch (err) {
     console.error(err);

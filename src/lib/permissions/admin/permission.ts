@@ -18,5 +18,5 @@ export async function UserManagementPermission() {
     return { success: false, error: "Forbidden: ITSG Only" };
   }
 
-  return { success: true, data: user.id };
+  return { success: true, data: user };
 }

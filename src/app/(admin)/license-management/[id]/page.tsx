@@ -28,6 +28,7 @@ import {
   Users,
   Package,
 } from "lucide-react";
+import { LicenseAuditDrawer } from "@/components/admin/license-management/LicenseAuditLogs";
 
 function LicenseDetailsSkeleton() {
   return (
@@ -276,6 +277,11 @@ export default function LicenseDetailsPage() {
             </p>
           </div>
         </div>
+        <div className="flex items-center gap-4">
+          <LicenseAuditDrawer licenseId={id}>
+            <Button variant="outline">View Audit Logs</Button>
+          </LicenseAuditDrawer>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -336,11 +342,9 @@ export default function LicenseDetailsPage() {
                   )}`}
                 >
                   {Math.round(
-                    ((license.unassignedKeysCount /
-                      license._count.licenseKeys) |
-                      0) *
+                    (license.unassignedKeysCount / license._count.licenseKeys) *
                       100
-                  )}
+                  ) | 0}
                   %
                 </span>
               </div>
