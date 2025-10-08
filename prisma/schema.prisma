@@ -9,23 +9,28 @@ datasource db {
 }
 
 model UserDetails {
-  id               String         @id @default(uuid()) @db.Uuid
+  id               String              @id @default(uuid()) @db.Uuid
   name             String
-  email            String         @unique
+  email            String              @unique
   role             Role
   department       Department
   position         String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  managerId        String?        @db.Uuid
-  addedById        String?        @db.Uuid
-  licensesAdded    License[]      @relation("LicenseAddedBy")
-  licenseKeysAdded LicenseKey[]   @relation("LicenseKeyAddedBy")
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  managerId        String?             @db.Uuid
+  addedById        String?             @db.Uuid
+  licensesAdded    License[]           @relation("LicenseAddedBy")
+  licenseKeysAdded LicenseKey[]        @relation("LicenseKeyAddedBy")
   Notification     Notification[]
-  addedBy          UserDetails?   @relation("AddedBy", fields: [addedById], references: [id])
-  addedUsers       UserDetails[]  @relation("AddedBy")
-  manager          UserDetails?   @relation("UserManager", fields: [managerId], references: [id])
-  subordinates     UserDetails[]  @relation("UserManager")
+  addedBy          UserDetails?        @relation("AddedBy", fields: [addedById], references: [id])
+  addedUsers       UserDetails[]       @relation("AddedBy")
+  manager          UserDetails?        @relation("UserManager", fields: [managerId], references: [id])
+  subordinates     UserDetails[]       @relation("UserManager")
+  approvedRequests RequestItem[]       @relation("RequestItemApprover")
+  assignedLicenses LicenseAssignment[] @relation("LicenseAssignmentAssigner")
+  requests          LicenseRequest[]    @relation("UserRequests")       
+  managedRequests   LicenseRequest[]    @relation("ManagerApprovals")    
+
 }
 
 model License {
@@ -41,9 +46,9 @@ model License {
   addedById      String?       @db.Uuid
   status         LicenseStatus @default(AVAILABLE)
   type           LicenseType   @default(SEAT_BASED)
-  availableSeats Int           @default(0)
   licenseAddedBy UserDetails?  @relation("LicenseAddedBy", fields: [addedById], references: [id])
   licenseKeys    LicenseKey[]
+  RequestItem    RequestItem[]
 }
 
 model LicenseKey {
@@ -56,24 +61,57 @@ model LicenseKey {
   addedById String?          @db.Uuid
   addedBy   UserDetails?     @relation("LicenseKeyAddedBy", fields: [addedById], references: [id])
   license   License          @relation(fields: [licenseId], references: [id])
+
+  assignment LicenseAssignment?
 }
 
 model LicenseRequest {
-  id        String        @id @default(dbgenerated("gen_random_uuid()"))
-  userId    String
-  licenseId String
-  managerId String
-  status    RequestStatus @default(PENDING)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) 
+  userId    String       @db.Uuid
+  user      UserDetails  @relation("UserRequests", fields: [userId], references: [id])
+
+  managerId String?      @db.Uuid
+  manager   UserDetails? @relation("ManagerApprovals", fields: [managerId], references: [id])
+
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  items     RequestItem[]
+}
+
+
+model RequestItem {
+  id          String          @id @default(dbgenerated("gen_random_uuid()"))
+  requestId   String
+  type        RequestItemType
+  description String?
+  status      RequestStatus   @default(PENDING)
+
+  licenseId String?
+  license   License? @relation(fields: [licenseId], references: [id])
+
+  request     LicenseRequest      @relation(fields: [requestId], references: [id])
+  assignments LicenseAssignment[]
+
+  approvedBy String? @db.Uuid
+  approver   UserDetails? @relation("RequestItemApprover", fields: [approvedBy], references: [id])
+  approvedAt DateTime?
 }
 
 model LicenseAssignment {
-  id               String   @id @default(dbgenerated("gen_random_uuid()"))
-  userId           String
-  licenseKeyId     String   @unique
-  licenseRequestId String   @unique
-  assignedAt       DateTime @default(now())
+  id           String     @id @default(dbgenerated("gen_random_uuid()"))
+  userId       String
+  licenseKeyId String     @unique
+  licenseKey   LicenseKey @relation(fields: [licenseKeyId], references: [id])
+
+  status AssignmentStatus @default(ACTIVE)
+
+  requestItemId String
+  requestItem   RequestItem @relation(fields: [requestItemId], references: [id])
+
+  assignedBy String? @db.Uuid
+  assigner   UserDetails? @relation("LicenseAssignmentAssigner", fields: [assignedBy], references: [id])
+  assignedAt DateTime?
 }
 
 model ProcurementRequest {
@@ -104,6 +142,18 @@ model Notification {
   read      Boolean          @default(false)
   createdAt DateTime         @default(now())
   user      UserDetails      @relation(fields: [userId], references: [id])
+}
+
+enum RequestItemType {
+  EMAIL
+  LICENSE
+  OTHER
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
 }
 
 enum NotificationType {

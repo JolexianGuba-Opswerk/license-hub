@@ -9,34 +9,45 @@ interface Context {
 
 export async function GET(request: NextRequest, { params }: Context) {
   try {
+    // Fetch the license with total key count
     const license = await prisma.license.findUnique({
       where: { id: params.id },
       include: {
         licenseAddedBy: {
-          select: {
-            name: true,
-            department: true,
-            role: true,
-          },
+          select: { name: true, department: true, role: true },
         },
         licenseKeys: {
-          orderBy: {
-            createdAt: "desc",
-          },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, status: true },
         },
         _count: {
-          select: {
-            licenseKeys: true,
-          },
+          select: { licenseKeys: true }, // total keys
         },
       },
     });
 
-    return NextResponse.json(license);
+    if (!license) {
+      return NextResponse.json({ error: "License not found" }, { status: 404 });
+    }
+
+    // Count unassigned keys for this license
+    const unassignedCount = await prisma.licenseKey.count({
+      where: {
+        licenseId: license.id,
+        NOT: { status: "ASSIGNED" },
+      },
+    });
+
+    const licenseWithCounts = {
+      ...license,
+      unassignedKeysCount: unassignedCount,
+    };
+
+    return NextResponse.json(licenseWithCounts);
   } catch (error) {
-    console.error("License detail API error:", error);
+    console.error(error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Failed to fetch license" },
       { status: 500 }
     );
   }

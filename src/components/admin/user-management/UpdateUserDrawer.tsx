@@ -42,7 +42,7 @@ export function UpdateUserDrawer({
   mutate,
 }: UpdateUserDrawerProps) {
   const isMobile = useIsMobile();
-
+  const [emailGuardEnabled, setEmailGuardEnabled] = React.useState(true);
   const initialState = { success: false, error: "" };
   const [state, updateUser, pending] = React.useActionState(
     updateUserAction,
@@ -117,22 +117,48 @@ export function UpdateUserDrawer({
           {/* Email */}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              required
-              disabled={pending}
-              value={formData.email}
-              onChange={(e) =>
-                setFormData({ ...formData, email: e.target.value })
-              }
-            />
+            <div className="flex items-center justify-between w-full">
+              <div className="flex gap-2 w-full">
+                {/* Visible Input (guarded) */}
+                <Input
+                  id="email"
+                  name="email_disabled"
+                  type="email"
+                  className="w-full"
+                  disabled={pending || emailGuardEnabled}
+                  value={formData.email}
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value });
+                  }}
+                />
+
+                {/* Hidden Input (always submitted) */}
+                <input type="hidden" name="email" value={formData.email} />
+
+                {/* Change Email Button */}
+                {emailGuardEnabled && (
+                  <Button
+                    disabled={pending}
+                    type="button"
+                    variant="outline"
+                    className="w-30"
+                    onClick={() => {
+                      if (confirm("Are you sure you want to edit the email?")) {
+                        setEmailGuardEnabled(false);
+                      }
+                    }}
+                  >
+                    Change Email
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Department & Role */}
-          <div className="grid grid-cols-2 gap-4 mt-3">
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 mt-3 gap-4">
+            {/* Department */}
+            <div className="space-y-2 w-full">
               <Label htmlFor="department">Department</Label>
               <Select
                 name="department"
@@ -145,10 +171,10 @@ export function UpdateUserDrawer({
                   })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Department" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="w-full">
                   <SelectItem value="ITSG">ITSG</SelectItem>
                   <SelectItem value="SRE">SRE</SelectItem>
                   <SelectItem value="HR">HR</SelectItem>
@@ -157,7 +183,8 @@ export function UpdateUserDrawer({
               </Select>
             </div>
 
-            <div className="space-y-2">
+            {/* Role */}
+            <div className="space-y-2 w-full">
               <Label htmlFor="role">Role</Label>
               <Select
                 name="role"
@@ -167,10 +194,10 @@ export function UpdateUserDrawer({
                   setFormData({ ...formData, role: v as User["role"] })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Role" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="w-full">
                   <SelectItem value="EMPLOYEE">Employee</SelectItem>
                   <SelectItem value="MANAGER">Manager</SelectItem>
                   <SelectItem value="ADMIN">Admin</SelectItem>
@@ -197,7 +224,7 @@ export function UpdateUserDrawer({
 
           {/* Manager & Added By */}
           <div className="grid grid-cols-2 gap-4 mt-3">
-            <div className="space-y-2">
+            <div className="space-y-2 w-full">
               <Label htmlFor="managerId">Manager</Label>
               <Select
                 name="managerId"
@@ -218,18 +245,16 @@ export function UpdateUserDrawer({
                   setFormData({ ...formData, managerId: v })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select Manager" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="w-full">
                   <SelectItem value="none">No Manager</SelectItem>
                   {filteredManagers?.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      <div className="flex-1 overflow-hidden">
-                        <span className="block truncate text-sm">
-                          {m.name} ({m.department})
-                        </span>
-                      </div>
+                    <SelectItem key={m.id} value={m.id} className="w-50">
+                      <span className="block truncate max-w-[120px] text-sm">
+                        {m.name} ({m.department})
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>

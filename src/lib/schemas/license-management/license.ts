@@ -23,49 +23,36 @@ export const LicenseKeySchema = z.object({
 export type CreateLicenseKey = z.infer<typeof LicenseKeySchema>;
 
 // License Type & Zod
-export const CreatelicenseSchema = z
-  .object({
-    id: z.string().optional(),
-    name: z
-      .string()
-      .min(1, "Name is required")
-      .max(100, "Name must be at most 100 characters"),
-    vendor: z.string().max(50, "Vendor name must be at most 50 characters"),
-    description: z
-      .string()
-      .max(500, "Description must be at most 500 characters")
-      .optional(),
-    totalSeats: z
-      .number()
-      .min(1, "Total seats must be at least 1")
-      .max(1000, "Total seats cannot exceed 1000"),
-    availableSeats: z
-      .number()
-      .max(1000, "Available seats cannot exceed 1000")
-      .optional(),
-    cost: z
-      .number()
-      .min(0, "Cost must be at least 0")
-      .max(1000000, "Cost cannot exceed 1,000,000")
-      .optional(),
-    expiryDate: z.string().refine(
-      (date) => {
-        const d = new Date(date);
-        return !isNaN(d.getTime()) && d > new Date();
-      },
-      { message: "Expiry date must be a valid future date" }
-    ),
-    type: z.enum(["SEAT_BASED", "KEY_BASED"]),
-  })
-  .refine(
-    (data) =>
-      data.availableSeats === undefined ||
-      data.availableSeats <= data.totalSeats,
-    {
-      message: "Available sears cannot be greater than total seats",
-      path: ["availableSeats"],
-    }
-  );
+export const CreatelicenseSchema = z.object({
+  id: z.string().optional(),
+  name: z
+    .string()
+    .min(1, "Name is required")
+    .max(100, "Name must be at most 100 characters"),
+  vendor: z.string().max(50, "Vendor name must be at most 50 characters"),
+  description: z
+    .string()
+    .max(500, "Description must be at most 500 characters")
+    .optional(),
+  totalSeats: z
+    .number()
+    .min(1, "Total seats must be at least 1")
+    .max(1000, "Total seats cannot exceed 1000"),
+
+  cost: z
+    .number()
+    .min(0, "Cost must be at least 0")
+    .max(1000000, "Cost cannot exceed 1,000,000")
+    .optional(),
+  expiryDate: z.string().refine(
+    (date) => {
+      const d = new Date(date);
+      return !isNaN(d.getTime()) && d > new Date();
+    },
+    { message: "Expiry date must be a valid future date" }
+  ),
+  type: z.enum(["SEAT_BASED", "KEY_BASED"]),
+});
 
 export type CreateLicense = z.infer<typeof CreatelicenseSchema>;
 
@@ -96,7 +83,6 @@ export interface License {
   type: "SEAT_BASED" | "KEY_BASED";
   description?: string;
   totalSeats: number;
-  availableSeats: number;
   status: "AVAILABLE" | "FULL" | "EXPIRED";
   cost?: number;
   expiryDate?: Date;
@@ -111,6 +97,7 @@ export interface License {
   _count: {
     licenseKeys: number;
   };
+  unassignedKeysCount: number;
 }
 
 export interface LicenseResponse {

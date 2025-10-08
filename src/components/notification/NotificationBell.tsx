@@ -18,8 +18,9 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 import { Notification } from "@/lib/schemas/notification/notification";
-import { useEffect } from "react";
+import { startTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { updateNotificationAction } from "@/actions/notification/action";
 
 const typeConfig: Record<string, { icon: any; color: string; bg: string }> = {
   LICENSE_CREATED: {
@@ -141,6 +142,9 @@ export function NotificationBell() {
               return (
                 <div
                   onClick={() => {
+                    startTransition(() => {
+                      updateNotificationAction(n.id).then(() => mutate());
+                    });
                     router.push(n.url!);
                   }}
                   key={n.id}

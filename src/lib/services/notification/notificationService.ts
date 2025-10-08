@@ -1,4 +1,3 @@
-import "server-only";
 import { PrismaClient, NotificationType } from "@prisma/client";
 import { notificationTemplates } from "./notificationTemplate";
 
@@ -33,4 +32,20 @@ export async function sendNotification(input: CreateNotificationInput) {
   }
 
   return notification;
+}
+
+export async function readNotificaiton(notificationId: string) {
+  try {
+    await prisma.notification.update({
+      where: {
+        id: notificationId,
+      },
+      data: {
+        read: true,
+      },
+    });
+    return { success: true };
+  } catch {
+    return { success: false, error: "Something went wrong" };
+  }
 }

@@ -156,6 +156,24 @@ export default function LicenseDetailsPage() {
       </div>
     );
   }
+  const getExpiryBadge = (expiryDate?: string | Date) => {
+    if (!expiryDate) return <Badge variant="secondary">No Expiry</Badge>;
+
+    const now = new Date();
+    const expiry = new Date(expiryDate);
+    const diffTime = expiry.getTime() - now.getTime();
+    const diffDays = diffTime / (1000 * 60 * 60 * 24);
+
+    if (diffDays < 0) return <Badge variant="destructive">Expired</Badge>;
+    if (diffDays <= 3)
+      return (
+        <Badge variant="destructive">
+          Expiring Soon ({Math.ceil(diffDays)}d)
+        </Badge>
+      );
+
+    return <Badge variant="default">{formatDateTime(expiry)}</Badge>;
+  };
 
   const getStatusBadge = (status: LicenseStatus) => {
     switch (status) {
@@ -194,15 +212,17 @@ export default function LicenseDetailsPage() {
     }
   };
 
-  const getUsagePercentage = () => {
-    if (!license || license.totalSeats === 0) return 0;
-    return (license.availableSeats / license.totalSeats) * 100;
-  };
+  const getSeatStatusColor = (percentage: number, type: string) => {
+    if (type === "SEAT_USAGE") {
+      if (percentage >= 90) return "text-red-600";
+      if (percentage >= 75) return "text-orange-600";
+      return "text-green-600";
+    } else {
+      if (percentage >= 90) return "text-red-600";
+      if (percentage >= 75) return "text-orange-600";
 
-  const getSeatStatusColor = (percentage: number) => {
-    if (percentage >= 90) return "text-red-600";
-    if (percentage >= 75) return "text-orange-600";
-    return "text-green-600";
+      return "text-green-600";
+    }
   };
 
   if (isLoading) {
@@ -227,8 +247,12 @@ export default function LicenseDetailsPage() {
     );
   }
 
-  const usagePercentage = getUsagePercentage();
-  const seatStatusColor = getSeatStatusColor(usagePercentage);
+  const usagePercentage = Math.round(
+    (license._count.licenseKeys / license.totalSeats) * 100
+  );
+  const unassignedPercentage = Math.round(
+    (license.unassignedKeysCount / license._count.licenseKeys) * 100
+  );
 
   return (
     <div className="w-full flex flex-col gap-6 p-6">
@@ -273,8 +297,16 @@ export default function LicenseDetailsPage() {
             <div className="w-full mt-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Seat Usage</span>
-                <span className={`font-semibold ${seatStatusColor}`}>
-                  {Math.round(usagePercentage)}%
+                <span
+                  className={`font-semibold ${getSeatStatusColor(
+                    usagePercentage,
+                    "SEAT_USAGE"
+                  )}`}
+                >
+                  {Math.round(
+                    (license._count.licenseKeys / license.totalSeats) * 100
+                  )}
+                  %
                 </span>
               </div>
               <div className="w-full bg-muted rounded-full h-2">
@@ -290,8 +322,43 @@ export default function LicenseDetailsPage() {
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                {license.totalSeats - license.availableSeats} of{" "}
-                {license.totalSeats} seats used
+                {license._count.licenseKeys} of {license.totalSeats} seats used
+              </p>
+            </div>
+
+            <div className="w-full mt-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Unassigned Seats</span>
+                <span
+                  className={`font-semibold ${getSeatStatusColor(
+                    unassignedPercentage,
+                    "UNASSIGNED_USAGE"
+                  )}`}
+                >
+                  {Math.round(
+                    ((license.unassignedKeysCount /
+                      license._count.licenseKeys) |
+                      0) *
+                      100
+                  )}
+                  %
+                </span>
+              </div>
+              <div className="w-full bg-muted rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full ${
+                    unassignedPercentage >= 90
+                      ? "bg-red-500"
+                      : unassignedPercentage >= 75
+                      ? "bg-orange-500"
+                      : "bg-green-500"
+                  }`}
+                  style={{ width: `${unassignedPercentage | 0}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {license.unassignedKeysCount} of {license._count.licenseKeys}{" "}
+                seats used
               </p>
             </div>
           </CardContent>
@@ -324,13 +391,13 @@ export default function LicenseDetailsPage() {
                 title="Usage & Expiry"
                 fields={[
                   {
-                    label: "Seats",
-                    value: `${license.availableSeats} / ${license.totalSeats} available`,
+                    label: "Available Seats",
+                    value: `${license._count.licenseKeys} / ${license.totalSeats} available`,
                   },
                   {
                     label: "Expiry Date",
                     value: license.expiryDate
-                      ? formatDateTime(license.expiryDate)
+                      ? getExpiryBadge(license.expiryDate)
                       : "No expiry",
                   },
                   {

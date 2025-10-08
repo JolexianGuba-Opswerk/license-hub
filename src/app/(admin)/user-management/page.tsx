@@ -42,6 +42,7 @@ import {
 import { fetcher } from "@/lib/fetcher";
 import { GetUserResponse, userRoles } from "@/lib/types/user";
 import { Trash2Icon } from "lucide-react";
+import { toast } from "sonner";
 
 export default function UserManagementTable() {
   const router = useRouter();
@@ -183,7 +184,15 @@ export default function UserManagementTable() {
                             </DropdownMenuItem>
                           </UpdateUserDrawer>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600">
+                          <DropdownMenuItem
+                            className="text-red-600 "
+                            // TODO: ADD HERE THE ACTUAL DELETION OF USER
+                            onSelect={() => {
+                              toast.message(
+                                "This feature will be available soon"
+                              );
+                            }}
+                          >
                             <Trash2Icon className="h-4 w-4 mr-2" />
                             Delete
                           </DropdownMenuItem>

@@ -63,6 +63,7 @@ export async function updateUserAction(
   const userData = updateUserSchema.safeParse(Object.fromEntries(formData));
 
   if (!userData.success) {
+    console.log(userData.error);
     return {
       success: false,
       error: userData.error.issues[0].message,

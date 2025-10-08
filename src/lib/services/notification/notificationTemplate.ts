@@ -16,12 +16,14 @@ export const notificationTemplates: Record<NotificationType, TemplateFn> = {
       payload?.assigneeName ?? "a user"
     }.`,
   }),
+
   LICENSE_EXPIRED: (payload) => ({
     title: "License Expired",
-    message: `License ${payload?.licenseKey ?? ""} expired on ${
-      payload?.expiredAt ?? "an unknown date"
-    }.`,
+    message: `The license **${payload?.name ?? "Unknown"}** from vendor **${
+      payload?.vendor ?? "Unknown Vendor"
+    }** expired on ${payload?.expiredAt ?? "an unknown date"}.`,
   }),
+
   LICENSE_REQUESTED: (payload) => ({
     title: "License Requested",
     message: `${payload?.requesterName ?? "A user"} has requested a license.`,
