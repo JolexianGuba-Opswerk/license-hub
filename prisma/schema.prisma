@@ -9,28 +9,27 @@ datasource db {
 }
 
 model UserDetails {
-  id               String              @id @default(uuid()) @db.Uuid
-  name             String
-  email            String              @unique
-  role             Role
-  department       Department
-  position         String?
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  managerId        String?             @db.Uuid
-  addedById        String?             @db.Uuid
-  licensesAdded    License[]           @relation("LicenseAddedBy")
-  licenseKeysAdded LicenseKey[]        @relation("LicenseKeyAddedBy")
-  Notification     Notification[]
-  addedBy          UserDetails?        @relation("AddedBy", fields: [addedById], references: [id])
-  addedUsers       UserDetails[]       @relation("AddedBy")
-  manager          UserDetails?        @relation("UserManager", fields: [managerId], references: [id])
-  subordinates     UserDetails[]       @relation("UserManager")
-  approvedRequests RequestItem[]       @relation("RequestItemApprover")
-  assignedLicenses LicenseAssignment[] @relation("LicenseAssignmentAssigner")
-  requests          LicenseRequest[]    @relation("UserRequests")       
-  managedRequests   LicenseRequest[]    @relation("ManagerApprovals")    
-
+  id                       String                @id @default(uuid()) @db.Uuid
+  name                     String
+  email                    String                @unique
+  role                     Role
+  department               Department
+  position                 String?
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+  managerId                String?               @db.Uuid
+  addedById                String?               @db.Uuid
+  licensesAdded            License[]             @relation("LicenseAddedBy")
+  licenseKeysAdded         LicenseKey[]          @relation("LicenseKeyAddedBy")
+  Notification             Notification[]
+  addedBy                  UserDetails?          @relation("AddedBy", fields: [addedById], references: [id])
+  addedUsers               UserDetails[]         @relation("AddedBy")
+  manager                  UserDetails?          @relation("UserManager", fields: [managerId], references: [id])
+  subordinates             UserDetails[]         @relation("UserManager")
+  assignedLicenses         LicenseAssignment[]   @relation("LicenseAssignmentAssigner")
+  requestorId              LicenseRequest[]      @relation("Requestor")
+  managerRequestedFor      LicenseRequest[]      @relation("ManagerRequestedFor")
+  requestItemOwnerApprover RequestItemApproval[] @relation("RequestItemOwnerApprover")
 }
 
 model License {
@@ -40,6 +39,7 @@ model License {
   description    String?
   totalSeats     Int           @default(0)
   cost           Float?
+  owner          Department    @default(ITSG)
   expiryDate     DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -66,36 +66,63 @@ model LicenseKey {
 }
 
 model LicenseRequest {
-  id        String       @id @default(dbgenerated("gen_random_uuid()")) 
-  userId    String       @db.Uuid
-  user      UserDetails  @relation("UserRequests", fields: [userId], references: [id])
+  id          String        @id @default(dbgenerated("gen_random_uuid()"))
+  requestorId String        @db.Uuid
+  requestor   UserDetails   @relation("Requestor", fields: [requestorId], references: [id])
+  status      RequestStatus @default(PENDING)
 
-  managerId String?      @db.Uuid
-  manager   UserDetails? @relation("ManagerApprovals", fields: [managerId], references: [id])
+  requestedForId String?      @db.Uuid
+  requestedFor   UserDetails? @relation("ManagerRequestedFor", fields: [requestedForId], references: [id])
 
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  items     RequestItem[]
+  items RequestItem[]
 }
 
-
 model RequestItem {
-  id          String          @id @default(dbgenerated("gen_random_uuid()"))
-  requestId   String
-  type        RequestItemType
-  description String?
-  status      RequestStatus   @default(PENDING)
+  id            String          @id @default(dbgenerated("gen_random_uuid()"))
+  requestId     String
+  type          RequestItemType
+  justification String?
+  status        RequestStatus   @default(PENDING)
+  licenseId     String?
+  license       License?        @relation(fields: [licenseId], references: [id])
 
-  licenseId String?
-  license   License? @relation(fields: [licenseId], references: [id])
+  // FOR NONE EXISTING LICENSES
+  requestedLicenseName   String?
+  requestedLicenseVendor String?
 
-  request     LicenseRequest      @relation(fields: [requestId], references: [id])
+  // FOR NEW USER 
+  newUserFullName   String?
+  newUserDepartment String?
+  newUserRole       String?
+  newUserPosition   String?
+  newUserManagerId  String?
+
+  request     LicenseRequest        @relation(fields: [requestId], references: [id])
   assignments LicenseAssignment[]
+  approvals   RequestItemApproval[]
+}
 
-  approvedBy String? @db.Uuid
-  approver   UserDetails? @relation("RequestItemApprover", fields: [approvedBy], references: [id])
-  approvedAt DateTime?
+model RequestItemApproval {
+  id            String        @id @default(dbgenerated("gen_random_uuid()"))
+  requestItemId String
+  approverId    String        @db.Uuid
+  approver      UserDetails   @relation("RequestItemOwnerApprover", fields: [approverId], references: [id])
+  level         ApprovalLevel
+  status        RequestStatus
+  reason        String?
+  approvedAt    DateTime?
+  requestItem   RequestItem   @relation(fields: [requestItemId], references: [id])
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+enum ApprovalLevel {
+  MANAGER
+  ITSG
+  OWNER
 }
 
 model LicenseAssignment {
@@ -109,7 +136,7 @@ model LicenseAssignment {
   requestItemId String
   requestItem   RequestItem @relation(fields: [requestItemId], references: [id])
 
-  assignedBy String? @db.Uuid
+  assignedBy String?      @db.Uuid
   assigner   UserDetails? @relation("LicenseAssignmentAssigner", fields: [assignedBy], references: [id])
   assignedAt DateTime?
 }
@@ -171,6 +198,7 @@ enum Role {
   MANAGER
   ADMIN
   ACCOUNT_OWNER
+  TEAM_LEAD
   FINANCE
 }
 
@@ -183,7 +211,9 @@ enum Department {
 
 enum RequestStatus {
   PENDING
+  REVIEWING
   APPROVED
+  ASSIGNING
   DENIED
   FULFILLED
 }

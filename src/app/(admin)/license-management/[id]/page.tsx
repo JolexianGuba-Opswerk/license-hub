@@ -29,6 +29,7 @@ import {
   Package,
 } from "lucide-react";
 import { LicenseAuditDrawer } from "@/components/admin/license-management/LicenseAuditLogs";
+import { ManageLicenseKeysDrawer } from "@/components/admin/license-management/ManageLicenseKeyDrawer";
 
 function LicenseDetailsSkeleton() {
   return (
@@ -278,6 +279,13 @@ export default function LicenseDetailsPage() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          <ManageLicenseKeysDrawer license={license}>
+            <Button variant="outline">
+              {license.type === "KEY_BASED"
+                ? " Manage License Keys"
+                : "Manage License Seats"}
+            </Button>
+          </ManageLicenseKeysDrawer>
           <LicenseAuditDrawer licenseId={id}>
             <Button variant="outline">View Audit Logs</Button>
           </LicenseAuditDrawer>

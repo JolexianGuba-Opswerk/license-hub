@@ -50,6 +50,7 @@ import {
 } from "@/lib/schemas/license-management/license";
 import { LicenseStatus, LicenseType } from "@prisma/client";
 import { Trash2Icon } from "lucide-react";
+import useDebounce from "@/lib/utils/useDebounce";
 
 export default function LicenseManagementTable() {
   const router = useRouter();
@@ -60,7 +61,8 @@ export default function LicenseManagementTable() {
   const vendor = searchParams.get("vendor") || "ALL";
   const status = searchParams.get("status") || "ALL";
   const type = searchParams.get("type") || "ALL";
-  const swrKey = `/api/license-management?page=${page}&search=${search}&vendor=${vendor}&status=${status}`;
+  const [searchDebounced, setSearchDebounced] = React.useState(search);
+  const [debouncedValue] = useDebounce(searchDebounced, 500);
 
   const updateParams = (updates: Record<string, string | number | null>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -74,6 +76,14 @@ export default function LicenseManagementTable() {
     router.replace(params.toString() ? `?${params.toString()}` : "");
   };
 
+  React.useEffect(() => {
+    updateParams({
+      search: debouncedValue || null,
+      page: 1,
+    });
+  }, [debouncedValue]);
+
+  const swrKey = `/api/license-management?page=${page}&search=${search}&vendor=${vendor}&status=${status}&type=${type}`;
   const { data, isLoading, mutate } = useSWR<LicenseResponse>(swrKey, fetcher, {
     revalidateOnFocus: true,
   });
@@ -135,10 +145,8 @@ export default function LicenseManagementTable() {
             <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
               placeholder="Search licenses..."
-              value={search}
-              onChange={(e) =>
-                updateParams({ search: e.target.value, page: 1 })
-              }
+              value={searchDebounced}
+              onChange={(e) => setSearchDebounced(e.target.value)}
               className="pl-9"
             />
           </div>
@@ -177,7 +185,7 @@ export default function LicenseManagementTable() {
 
           <Select
             value={type}
-            onValueChange={(value) => updateParams({ status: value, page: 1 })}
+            onValueChange={(value) => updateParams({ type: value, page: 1 })}
           >
             <SelectTrigger className="w-32">
               <SelectValue placeholder="License Type" />
@@ -204,13 +212,13 @@ export default function LicenseManagementTable() {
       >
         <div className="overflow-hidden rounded-lg border">
           <Table>
-            <TableHeader className="bg-muted/50">
+            <TableHeader>
               <TableRow>
                 <TableHead>License Name</TableHead>
                 <TableHead>Vendor</TableHead>
                 <TableHead>Available Seats</TableHead>
                 <TableHead>Unassigned Seats</TableHead>
-                <TableHead>Cost</TableHead>
+                <TableHead>Owner</TableHead>
                 <TableHead>Expiry Date</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Type</TableHead>
@@ -278,7 +286,7 @@ export default function LicenseManagementTable() {
                         })()}
                       </div>
                     </TableCell>
-                    <TableCell>{formatCurrency(license.cost)}</TableCell>
+                    <TableCell>{license.owner}</TableCell>
                     <TableCell>{formatDate(license?.expiryDate)}</TableCell>
                     <TableCell>
                       {getLicenseStatusBadge(license.status)}
