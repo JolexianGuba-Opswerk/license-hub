@@ -184,6 +184,7 @@ export function CreateUserDrawer({ children, mutate }: CreateUserDrawerProps) {
                 <SelectContent>
                   <SelectItem value="EMPLOYEE">Employee</SelectItem>
                   <SelectItem value="MANAGER">Manager</SelectItem>
+                  <SelectItem value="TEAM_LEAD">Team Lead</SelectItem>
                   <SelectItem value="ADMIN">Admin</SelectItem>
                   <SelectItem value="ACCOUNT_OWNER">Account Owner</SelectItem>
                   <SelectItem value="FINANCE">Finance</SelectItem>

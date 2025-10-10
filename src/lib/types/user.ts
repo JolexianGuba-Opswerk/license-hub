@@ -22,7 +22,13 @@ export type User = {
 export type Manager = {
   id: string;
   name: string;
-  role: "EMPLOYEE" | "MANAGER" | "ADMIN" | "ACCOUNT_OWNER" | "FINANCE";
+  role:
+    | "EMPLOYEE"
+    | "MANAGER"
+    | "ADMIN"
+    | "ACCOUNT_OWNER"
+    | "FINANCE"
+    | "TEAM_LEAD";
   department: "ITSG" | "SRE" | "HR" | "SSED";
 };
 
@@ -36,6 +42,7 @@ export const userRoles: UserRoles = {
   ADMIN: "Admin",
   ACCOUNT_OWNER: "Account Owner",
   FINANCE: "Finance",
+  TEAM_LEAD: "Team Lead",
 };
 
 export type GetUserResponse = {

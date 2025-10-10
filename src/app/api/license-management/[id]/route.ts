@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-interface Context {
-  params: {
-    id: string;
-  };
-}
-
-export async function GET(request: NextRequest, { params }: Context) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params;
+    if (!id) {
+      return NextResponse.json(
+        { error: "License ID is required" },
+        { status: 400 }
+      );
+    }
+
     // Fetch the license with total key count
     const license = await prisma.license.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         licenseAddedBy: {
           select: { name: true, department: true, role: true },
@@ -21,7 +26,7 @@ export async function GET(request: NextRequest, { params }: Context) {
           select: { id: true, status: true },
         },
         _count: {
-          select: { licenseKeys: true }, // total keys
+          select: { licenseKeys: true },
         },
       },
     });
@@ -30,7 +35,6 @@ export async function GET(request: NextRequest, { params }: Context) {
       return NextResponse.json({ error: "License not found" }, { status: 404 });
     }
 
-    // Count unassigned keys for this license
     const unassignedCount = await prisma.licenseKey.count({
       where: {
         licenseId: license.id,

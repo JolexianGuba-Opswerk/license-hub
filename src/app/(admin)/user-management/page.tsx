@@ -43,6 +43,7 @@ import { fetcher } from "@/lib/fetcher";
 import { GetUserResponse, userRoles } from "@/lib/types/user";
 import { Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
+import useDebounce from "@/lib/utils/useDebounce";
 
 export default function UserManagementTable() {
   const router = useRouter();
@@ -52,6 +53,11 @@ export default function UserManagementTable() {
   const search = searchParams.get("search") || "";
   const role = searchParams.get("role") || "ALL";
   const department = searchParams.get("department") || "ALL";
+
+  // local state for input
+  const [searchValue, setSearchValue] = React.useState(search);
+  const [debouncedSearch] = useDebounce(searchValue, 500);
+
   const updateParams = (updates: Record<string, string | number | null>) => {
     const params = new URLSearchParams(searchParams.toString());
     Object.entries(updates).forEach(([key, value]) => {
@@ -64,6 +70,14 @@ export default function UserManagementTable() {
     router.replace(params.toString() ? `?${params.toString()}` : "");
   };
 
+  // handle search changes (debounced)
+  React.useEffect(() => {
+    updateParams({
+      search: debouncedSearch || null,
+      page: 1,
+    });
+  }, [debouncedSearch]);
+
   const swrKey = `/api/user-management?page=${page}&search=${search}&role=${role}&department=${department}`;
   const { data, isLoading, mutate } = useSWR<GetUserResponse>(swrKey, fetcher, {
     dedupingInterval: 1000 * 60 * 5,
@@ -73,18 +87,18 @@ export default function UserManagementTable() {
     <Tabs defaultValue="users" className="w-full flex-col gap-6">
       <div className="flex items-center justify-between px-4 lg:px-6">
         <div className="flex items-center gap-4 flex-1">
+          {/* Search box */}
           <div className="relative flex-1 max-w-sm">
             <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
               placeholder="Search users..."
-              value={search}
-              onChange={(e) =>
-                updateParams({ search: e.target.value, page: 1 })
-              }
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
               className="pl-9"
             />
           </div>
 
+          {/* Department filter */}
           <Select
             value={department}
             onValueChange={(value) =>
@@ -103,6 +117,7 @@ export default function UserManagementTable() {
             </SelectContent>
           </Select>
 
+          {/* Role filter */}
           <Select
             value={role}
             onValueChange={(value) => updateParams({ role: value, page: 1 })}
@@ -121,6 +136,7 @@ export default function UserManagementTable() {
           </Select>
         </div>
 
+        {/* Create user */}
         <CreateUserDrawer mutate={mutate}>
           <Button variant="outline" size="sm">
             <IconPlus className="h-4 w-4" />
@@ -129,6 +145,7 @@ export default function UserManagementTable() {
         </CreateUserDrawer>
       </div>
 
+      {/* Table */}
       <TabsContent
         value="users"
         className="relative flex flex-col gap-4 overflow-auto px-4 lg:px-6"
@@ -186,7 +203,6 @@ export default function UserManagementTable() {
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-red-600 "
-                            // TODO: ADD HERE THE ACTUAL DELETION OF USER
                             onSelect={() => {
                               toast.message(
                                 "This feature will be available soon"
@@ -215,6 +231,7 @@ export default function UserManagementTable() {
           </Table>
         </div>
 
+        {/* Pagination */}
         <Pagination
           page={page}
           totalPages={data?.meta.totalPages || 1}

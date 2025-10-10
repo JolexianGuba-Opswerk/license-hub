@@ -26,7 +26,13 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { formatDateTime } from "@/lib/utils/formatDateTime";
 import { CreateLicense } from "@/lib/schemas/license-management/license";
-
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 interface CreateLicenseDrawerProps {
   children: React.ReactNode;
   mutate: () => void;
@@ -46,6 +52,7 @@ export function CreateLicenseDrawer({
     cost: 0,
     expiryDate: "",
     type: "SEAT_BASED",
+    owner: "ITSG",
   });
 
   const resetForm = () =>
@@ -57,6 +64,7 @@ export function CreateLicenseDrawer({
       cost: 0,
       expiryDate: "",
       type: "SEAT_BASED",
+      owner: "ITSG",
     });
 
   const handSubmit = async (e: React.FormEvent) => {
@@ -171,6 +179,29 @@ export function CreateLicenseDrawer({
                 }
               />
             </div>
+          </div>
+          <div className="space-y-2 w-full ">
+            <Label htmlFor="department">Owner</Label>
+            <Select
+              name="department"
+              value={formData.owner}
+              onValueChange={(v) =>
+                setFormData({
+                  ...formData,
+                  owner: v as CreateLicense["owner"],
+                })
+              }
+            >
+              <SelectTrigger className="w-full m">
+                <SelectValue placeholder="Department" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ITSG">ITSG</SelectItem>
+                <SelectItem value="SRE">SRE</SelectItem>
+                <SelectItem value="HR">HR</SelectItem>
+                <SelectItem value="SSED">SSED</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid  gap-4">

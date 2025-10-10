@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { CreateLicense } from "@/lib/schemas/license-management/license";
-import { LicenseStatus, NotificationType } from "@prisma/client";
+import { License, LicenseStatus, NotificationType } from "@prisma/client";
 import { sendNotification } from "@/lib/services/notification/notificationService";
 import { LicenseLogger } from "@/logger/auditLogger";
 
@@ -17,6 +17,7 @@ export async function createLicense(
         vendor: licenseData.vendor,
         description: licenseData.description,
         totalSeats: licenseData.totalSeats,
+        owner: licenseData.owner,
         cost: licenseData.cost,
         expiryDate: licenseData.expiryDate
           ? new Date(licenseData.expiryDate)
@@ -62,10 +63,10 @@ export async function createLicense(
 }
 
 function getChangedFields(
-  oldData: Record<string, any>,
-  newData: Record<string, any>
+  oldData: Record<string, License>,
+  newData: Record<string, License>
 ) {
-  const changes: Record<string, { old: any; new: any }> = {};
+  const changes: Record<string, { old: License; new: License }> = {};
   for (const key in newData) {
     const oldValue = oldData[key];
     const newValue = newData[key];
@@ -149,6 +150,7 @@ export async function updateLicense(
         vendor: licenseData.vendor,
         description: licenseData.description,
         totalSeats: licenseData.totalSeats,
+        owner: licenseData.owner,
         cost: licenseData.cost,
         expiryDate: licenseData.expiryDate
           ? new Date(licenseData.expiryDate)

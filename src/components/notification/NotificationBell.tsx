@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { createClient } from "@/lib/supabase-client";
+import { createClient } from "@/lib/supabase/supabase-client";
 import {
   Bell,
   FileCheck,

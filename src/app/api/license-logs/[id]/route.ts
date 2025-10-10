@@ -4,11 +4,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
+    if (!id) return { error: "License ID is required" };
     const logPath = path.join(process.cwd(), "logs", "licenseAudit.log");
     if (!fs.existsSync(logPath)) {
       return NextResponse.json([], { status: 200 });

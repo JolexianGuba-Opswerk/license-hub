@@ -27,6 +27,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { Clipboard, Inbox } from "lucide-react";
 
 const data = {
   user: {
@@ -52,8 +53,13 @@ const data = {
     },
     {
       title: "Requests",
-      url: "/request",
-      icon: IconChartBar,
+      url: "/requests",
+      icon: Inbox,
+    },
+    {
+      title: "Assignments",
+      url: "/assign",
+      icon: Clipboard,
     },
     {
       title: "Procurement",

@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-interface Context {
-  params: {
-    id: string;
-  };
-}
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  if (!id) return NextResponse.json({ error: "License ID is required" });
 
-export async function GET(request: NextRequest, { params }: Context) {
   try {
     const license = await prisma.license.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         licenseAddedBy: {
           select: {

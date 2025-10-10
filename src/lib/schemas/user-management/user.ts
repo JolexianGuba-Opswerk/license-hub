@@ -10,7 +10,14 @@ export const createUserSchema = z.object({
     .string()
     .min(6, "Password must be at least 6 characters")
     .max(100, "Password is too long"),
-  role: z.enum(["EMPLOYEE", "MANAGER", "ADMIN", "ACCOUNT_OWNER", "FINANCE"]),
+  role: z.enum([
+    "EMPLOYEE",
+    "MANAGER",
+    "ADMIN",
+    "ACCOUNT_OWNER",
+    "FINANCE",
+    "TEAM_LEAD",
+  ]),
   department: z.enum(["ITSG", "SRE", "HR", "SSED"]),
   position: z.string().max(100, "Position is too long").nullable(),
   managerId: z
