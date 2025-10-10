@@ -29,6 +29,13 @@ import {
 import { updateLicenseAction } from "@/actions/license-management/license/action";
 import { Calendar } from "@/components/ui/calendar";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface UpdateLicenseDrawerProps {
   children: React.ReactNode;
@@ -58,6 +65,7 @@ export function UpdateLicenseDrawer({
     cost: license.cost || 0,
     expiryDate: String(license?.expiryDate),
     type: license.type,
+    owner: license.owner,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -171,6 +179,30 @@ export function UpdateLicenseDrawer({
                 }
               />
             </div>
+          </div>
+          <div className="space-y-2 w-full ">
+            <Label htmlFor="department">Owner</Label>
+            <Select
+              disabled={pending}
+              name="department"
+              value={formData.owner}
+              onValueChange={(v) =>
+                setFormData({
+                  ...formData,
+                  owner: v as CreateLicense["owner"],
+                })
+              }
+            >
+              <SelectTrigger className="w-full m">
+                <SelectValue placeholder="Department" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ITSG">ITSG</SelectItem>
+                <SelectItem value="SRE">SRE</SelectItem>
+                <SelectItem value="HR">HR</SelectItem>
+                <SelectItem value="SSED">SSED</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid gap-4">

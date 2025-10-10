@@ -7,7 +7,14 @@ export const userSchema = z.object({
   email: z.string().email(),
   position: z.string(),
   department: z.enum(["ITSG", "SRE", "HR", "SSED"]),
-  role: z.enum(["EMPLOYEE", "MANAGER", "ADMIN", "ACCOUNT_OWNER", "FINANCE"]),
+  role: z.enum([
+    "EMPLOYEE",
+    "MANAGER",
+    "ADMIN",
+    "ACCOUNT_OWNER",
+    "FINANCE",
+    "TEAM_LEAD",
+  ]),
   manager: z
     .object({
       id: z.string(),

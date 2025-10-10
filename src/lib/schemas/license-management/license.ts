@@ -38,7 +38,7 @@ export const CreatelicenseSchema = z.object({
     .number()
     .min(1, "Total seats must be at least 1")
     .max(1000, "Total seats cannot exceed 1000"),
-
+  owner: z.enum(["ITSG", "HR", "SSED", "SRE"]),
   cost: z
     .number()
     .min(0, "Cost must be at least 0")
@@ -85,6 +85,7 @@ export interface License {
   totalSeats: number;
   status: "AVAILABLE" | "FULL" | "EXPIRED";
   cost?: number;
+  owner: "ITSG" | "HR" | "SSED" | "SRE";
   expiryDate?: Date;
   createdAt: Date;
   updatedAt: Date;

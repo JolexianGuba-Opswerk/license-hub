@@ -30,14 +30,14 @@ import { User as UserType } from "@/lib/types/user";
 export default function UserDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-
+  const userId = params?.id;
   const {
     data: user,
     error,
     isLoading,
     mutate,
   } = useSWR<UserType>(
-    params.id ? `/api/user-management/${params.id}` : null,
+    params.id ? `/api/user-management/${userId}` : null,
     fetcher
   );
 
@@ -46,7 +46,7 @@ export default function UserDetailPage() {
       <div className="p-6">
         <div className="flex items-center gap-4 p-4 text-red-500 border border-red-200 rounded-lg bg-red-50">
           <div className="flex-1">
-            ß<h3 className="font-semibold">Failed to load user</h3>
+            <h3 className="font-semibold">Failed to load user</h3>
             <p className="text-sm text-red-600">Please try again later</p>
           </div>
           <Button variant="outline" size="sm" onClick={() => mutate()}>

@@ -45,7 +45,7 @@ import { TableSkeleton } from "@/components/TableSkeleton";
 interface ManageLicenseKeysDrawerProps {
   children: React.ReactNode;
   license: License;
-  tableSWRKey: string;
+  tableSWRKey?: string;
 }
 
 export function ManageLicenseKeysDrawer({
