@@ -46,18 +46,37 @@ export async function submitRequestAction({
       };
     }
 
-    if (userDetails.role === "EMPLOYEE" && requestedFor) {
-      return {
-        success: false,
-        error:
-          "Employees cannot submit requests on behalf of others. Submit for yourself only.",
-      };
+    if (requestedFor) {
+      if (userDetails.role === "EMPLOYEE") {
+        return {
+          success: false,
+          error:
+            "Employees cannot submit requests on behalf of others. Submit for yourself only.",
+        };
+      }
+
+      const requestedUser = await prisma.userDetails.findFirst({
+        where: { id: requestedFor },
+        select: { department: true },
+      });
+
+      if (!requestedUser) {
+        return { success: false, error: "Requested user not found." };
+      }
+
+      if (requestedUser.department !== userDetails.department) {
+        return {
+          success: false,
+          error:
+            "You can only submit requests for users with the same department as yours.",
+        };
+      }
     }
 
     const requestedForId =
       requestedFor === "self" ? userDetails.id : requestedFor;
 
-    const { error, data, warnings } = await createRequest(
+    const { error, warnings } = await createRequest(
       {
         id: userDetails.id,
         isManager: userDetails.role === "MANAGER",
@@ -133,6 +152,7 @@ export async function processRequestItemAction({
     });
 
     const allApproved = approvals.every((a) => a.status === "APPROVED");
+    const anyApproved = approvals.some((a) => a.status === "APPROVED");
     const anyDenied = approvals.some((a) => a.status === "DENIED");
     const allDenied = approvals.every((a) => a.status === "DENIED");
 
@@ -146,6 +166,8 @@ export async function processRequestItemAction({
           ? "DENIED"
           : anyDenied
           ? "DENIED"
+          : anyApproved
+          ? "REVIEWING"
           : "PENDING",
       },
     });
@@ -156,27 +178,30 @@ export async function processRequestItemAction({
       select: { status: true },
     });
 
-    if (items.every((i) => i.status === "APPROVED")) {
-      await prisma.licenseRequest.update({
-        where: { id: updatedItem.requestId },
-        data: { status: "APPROVED" },
-      });
-    } else if (items.every((i) => i.status === "DENIED")) {
-      await prisma.licenseRequest.update({
-        where: { id: updatedItem.requestId },
-        data: { status: "DENIED" },
-      });
-    } else if (items.some((i) => i.status === "APPROVED")) {
-      await prisma.licenseRequest.update({
-        where: { id: updatedItem.requestId },
-        data: { status: "ASSIGNING" },
-      });
-    } else if (items.some((i) => i.status === "DENIED")) {
-      await prisma.licenseRequest.update({
-        where: { id: updatedItem.requestId },
-        data: { status: "REVIEWING" },
-      });
+    // EXTRACT ITEM STATUS
+    const statuses = items.map((i) => i.status);
+
+    // CHECK PARENT STATUS
+    let parentStatus: "ASSIGNING" | "DENIED" | "REVIEWING" | "PENDING";
+
+    if (statuses.every((s) => s === "APPROVED")) {
+      parentStatus = "ASSIGNING";
+    } else if (statuses.every((s) => s === "DENIED")) {
+      parentStatus = "DENIED";
+    } else if (
+      statuses.some((s) => s === "APPROVED") ||
+      statuses.some((s) => s === "DENIED")
+    ) {
+      parentStatus = "REVIEWING";
+    } else {
+      parentStatus = "PENDING";
     }
+
+    // UPDATE THE PARENT REQUEST
+    await prisma.licenseRequest.update({
+      where: { id: updatedItem.requestId },
+      data: { status: parentStatus },
+    });
 
     return { success: true };
   } catch (err) {
@@ -188,58 +213,58 @@ export async function processRequestItemAction({
   }
 }
 
-export async function addApproverToRequestItem(
-  requestItemId: string,
-  data: AddApproverInput
-) {
-  try {
-    // CHECK IF APPROVER EXIST
-    const approver = await prisma.userDetails.findUnique({
-      where: { id: data.approverId },
-      select: { id: true, role: true },
-    });
+// export async function addApproverToRequestItem(
+//   requestItemId: string,
+//   data: AddApproverInput
+// ) {
+//   try {
+//     // CHECK IF APPROVER EXIST
+//     const approver = await prisma.userDetails.findUnique({
+//       where: { id: data.approverId },
+//       select: { id: true, role: true },
+//     });
 
-    if (!approver) {
-      return { error: "Approver not found" };
-    }
+//     if (!approver) {
+//       return { error: "Approver not found" };
+//     }
 
-    // PREVENT DUPLICATES
-    const existing = await prisma.requestItemApproval.findFirst({
-      where: {
-        requestItemId,
-        approverId: data.approverId,
-      },
-      select: {
-        id: true,
-      },
-    });
+//     // PREVENT DUPLICATES
+//     const existing = await prisma.requestItemApproval.findFirst({
+//       where: {
+//         requestItemId,
+//         approverId: data.approverId,
+//       },
+//       select: {
+//         id: true,
+//       },
+//     });
 
-    if (existing) {
-      return { error: "Approver already assigned to this request item" };
-    }
-    const isStillPending = await prisma.requestItemApproval.findFirst({
-      where: {
-        requestItemId,
-        approverId: data.approverId,
-      },
-      select: {
-        id: true,
-      },
-    });
+//     if (existing) {
+//       return { error: "Approver already assigned to this request item" };
+//     }
+//     const isStillPending = await prisma.requestItemApproval.findFirst({
+//       where: {
+//         requestItemId,
+//         approverId: data.approverId,
+//       },
+//       select: {
+//         id: true,
+//       },
+//     });
 
-    // APPROVAL CREATION
-    const approval = await prisma.requestItemApproval.create({
-      data: {
-        requestItemId,
-        approverId: data.approverId,
-        level: data.level,
-        status: "PENDING",
-      },
-    });
+//     // APPROVAL CREATION
+//     const approval = await prisma.requestItemApproval.create({
+//       data: {
+//         requestItemId,
+//         approverId: data.approverId,
+//         level: data.level,
+//         status: "PENDING",
+//       },
+//     });
 
-    return { error: "", data: approval };
-  } catch (error) {
-    console.error("Error adding approver:", error);
-    return { error: "Something went wrong while adding approver" };
-  }
-}
+//     return { error: "", data: approval };
+//   } catch (error) {
+//     console.error("Error adding approver:", error);
+//     return { error: "Something went wrong while adding approver" };
+//   }
+// }

@@ -1,18 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/supabase-server";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET({ params }: { params: { id: string } }) {
   try {
-    // TODO : PROVIDE A SAFE GUARD IF CURRENT USER CAN VIEW THIS OR NOT
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    const [supabase, requestId] = [await createClient(), params.id];
+
+    // 🚀 Run auth in parallel-friendly form
+    const { data, error: authError } = await supabase.auth.getUser();
+    const user = data?.user;
 
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -21,8 +17,64 @@ export async function GET(
     const userId = user.id;
     const userRole = user.user_metadata?.role;
     const userDept = user.user_metadata?.department;
-    const requestId = params.id;
 
+    // ONLY SELECTING NEEDED FIELDS FOR VALIDATION CHECK
+    const requestMeta = await prisma.licenseRequest.findUnique({
+      where: { id: requestId },
+      select: {
+        id: true,
+        requestor: { select: { id: true, department: true } },
+        requestedFor: { select: { id: true, department: true } },
+        items: {
+          select: {
+            id: true,
+            license: { select: { owner: true } },
+            approvals: {
+              select: {
+                approver: {
+                  select: { id: true, department: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!requestMeta) {
+      return NextResponse.json({ error: "Request not found" }, { status: 404 });
+    }
+
+    // ACCESS CONTROL SECTION
+    const isRequestor = requestMeta.requestor.id === userId;
+    const isRequestedFor = requestMeta.requestedFor?.id === userId;
+    const isApprover = requestMeta.items.some((i) =>
+      i.approvals.some((a) => a.approver.id === userId)
+    );
+
+    const isSameDeptLeadOrManager =
+      ["TEAM_LEAD", "MANAGER"].includes(userRole) &&
+      (requestMeta.requestedFor?.department === userDept ||
+        requestMeta.requestor.department === userDept ||
+        requestMeta.items.some((i) => i.license?.owner === userDept));
+
+    const isITSGTeamLead = userRole === "TEAM_LEAD" && userDept === "ITSG";
+
+    const hasAccess =
+      isRequestor ||
+      isRequestedFor ||
+      isApprover ||
+      isSameDeptLeadOrManager ||
+      isITSGTeamLead;
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "You are not authorized to view this request." },
+        { status: 403 }
+      );
+    }
+
+    // LOADING UP FULL DETAILS SECTION
     const licenseRequest = await prisma.licenseRequest.findUnique({
       where: { id: requestId },
       include: {
@@ -34,12 +86,7 @@ export async function GET(
             department: true,
             role: true,
             position: true,
-            manager: {
-              select: {
-                name: true,
-                email: true,
-              },
-            },
+            manager: { select: { name: true, email: true } },
           },
         },
         requestedFor: {
@@ -65,6 +112,7 @@ export async function GET(
                 expiryDate: true,
                 status: true,
                 type: true,
+
                 licenseKeys: {
                   where: { status: "ACTIVE" },
                   select: { id: true, status: true },
@@ -97,51 +145,22 @@ export async function GET(
       return NextResponse.json({ error: "Request not found" }, { status: 404 });
     }
 
-    // ACCESS CONTROL
-    const isRequestor = licenseRequest.requestor.id === userId;
-    const isRequestedFor = licenseRequest.requestedFor?.id === userId;
-
-    const isApprover = licenseRequest.items.some((item) =>
-      item.approvals.some((approval) => approval.approver.id === userId)
-    );
-
-    const isSameDeptLeadOrManager =
-      ["TEAM_LEAD", "MANAGER"].includes(userRole) &&
-      (licenseRequest.requestedFor?.department === userDept ||
-        licenseRequest.requestor.department === userDept ||
-        licenseRequest.items.some((item) => item.license?.owner === userDept));
-
-    const isITSGTeamLead = userRole === "TEAM_LEAD" && userDept === "ITSG";
-
-    const hasAccess =
-      isRequestor ||
-      isRequestedFor ||
-      isApprover ||
-      isSameDeptLeadOrManager ||
-      isITSGTeamLead;
-
-    if (!hasAccess) {
-      return NextResponse.json(
-        { error: "You are not authorized to view this request." },
-        { status: 403 }
-      );
-    }
-
-    // CHECK IF THE USER CAN TAKE ACTION OR DONE APPROVING ALREADY
     const updatedItems = licenseRequest.items.map((item) => {
-      const isDoneApproving = item.approvals.some(
-        (approval) =>
-          approval.status === "APPROVED" && approval.approver.id === userId
-      );
+      let canTakeAction = false;
+      let isDoneApproving = false;
 
-      const canTakeAction =
-        !isDoneApproving &&
-        item.approvals.some(
-          (approval) =>
-            approval.approver.id === userId &&
-            approval.approver.role === userRole &&
-            approval.status === "PENDING"
-        );
+      for (const approval of item.approvals) {
+        if (approval.status === "APPROVED" && approval.approver.id === userId) {
+          isDoneApproving = true;
+        }
+        if (
+          !isDoneApproving &&
+          approval.approver.id === userId &&
+          approval.status === "PENDING"
+        ) {
+          canTakeAction = true;
+        }
+      }
 
       return { ...item, canTakeAction, isDoneApproving };
     });

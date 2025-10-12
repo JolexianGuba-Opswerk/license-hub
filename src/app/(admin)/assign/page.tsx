@@ -40,11 +40,10 @@ export default function AssignmentsPage() {
       return matchesSearch && matchesStatus;
     }) || [];
 
-  const viewAssignmentDetails = (id: string) =>
-    router.push(`/admin/assignments/${id}`);
+  const viewAssignmentDetails = (id: string) => router.push(`/assign/${id}`);
   const startAssignment = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/admin/assignments/${id}`);
+    router.push(`/assign/${id}`);
   };
 
   return (

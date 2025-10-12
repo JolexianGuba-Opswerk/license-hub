@@ -3,13 +3,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoItem } from "./InfoItem";
 import { User, Mail, Calendar } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 export function RequestInfo({ request, targetUser }) {
   return (
     <Card className="mb-6">
-      <CardHeader className="pb-4">
+      <CardHeader className="">
         <CardTitle className="text-xl">Request Information</CardTitle>
+        <Separator className="my-2 " />
       </CardHeader>
+
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <InfoItem

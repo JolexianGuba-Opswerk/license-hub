@@ -22,7 +22,7 @@ export default function AssignmentsTable({
   viewAssignmentDetails,
   startAssignment,
 }: AssignmentsTableProps) {
-  if (assignments.length === 0) {
+  if (assignments.length === 0 || !assignments) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <Package className="h-12 w-12 mx-auto mb-3 opacity-50" />
@@ -34,7 +34,7 @@ export default function AssignmentsTable({
       </div>
     );
   }
-
+  console.log(assignments);
   return (
     <Card>
       <CardContent>
@@ -44,15 +44,13 @@ export default function AssignmentsTable({
               <TableHead>Requestor</TableHead>
               <TableHead>Request ID</TableHead>
               <TableHead>Licenses</TableHead>
-              <TableHead>Handler</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Approved By</TableHead>
               <TableHead>Progress</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {assignments.map((assignment) => (
+            {assignments?.map((assignment) => (
               <AssignmentRow
                 key={assignment.id}
                 assignment={assignment}

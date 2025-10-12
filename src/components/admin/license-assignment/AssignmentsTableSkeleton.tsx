@@ -23,9 +23,7 @@ export default function AssignmentsTableSkeleton() {
               <TableHead>Employee</TableHead>
               <TableHead>Request ID</TableHead>
               <TableHead>Licenses</TableHead>
-              <TableHead>Handler</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Approved By</TableHead>
               <TableHead>Progress</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
