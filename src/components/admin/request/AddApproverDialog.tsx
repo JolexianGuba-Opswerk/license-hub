@@ -42,7 +42,7 @@ export function AddApproverDialog({
   const { data: approvers, mutate } = useSWR(`/api/request/approver`, fetcher);
 
   // TO AVOID SELECTING OWN ID
-  const filteredApprovers = approvers?.filter(
+  const filteredApprovers = (approvers || []).filter(
     (approver) =>
       !currentApprovers.some((current) => current.approverId === approver.id)
   );
@@ -103,7 +103,6 @@ export function AddApproverDialog({
                 {filteredApprovers?.map((approver) => (
                   <SelectItem key={approver.id} value={approver.id}>
                     <div className="flex flex-col">
-                      <span className="font-medium">{approver.name}</span>
                       <span className="text-sm text-muted-foreground">
                         {approver.email} • {approver.role}
                       </span>

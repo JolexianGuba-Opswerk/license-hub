@@ -63,6 +63,7 @@ export function RequestItemCard({ item, request, currentUser, mutate }) {
           </Badge>
         </div>
         {currentUser?.user_metadata?.department === "ITSG" &&
+          currentUser?.user_metadata?.role === "TEAM_LEAD" &&
           item.status === "PENDING" && (
             <AddApproverDialog
               requestItemId={item.id}
@@ -79,10 +80,34 @@ export function RequestItemCard({ item, request, currentUser, mutate }) {
       {/* Justification */}
       {item.justification && (
         <div className="mb-4">
-          <Label className="text-sm font-medium">Business Justification</Label>
-          <p className="text-sm mt-2 p-3 bg-muted/50 rounded-md whitespace-pre-wrap">
-            {item.justification}
-          </p>
+          <Label className="text-sm font-medium flex items-center gap-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4 text-yellow-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M11 3a7 7 0 00-7 7c0 3.866 3.134 7 7 7s7-3.134 7-7a7 7 0 00-7-7z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 14v7"
+              />
+            </svg>
+            Business Justification
+          </Label>
+          <div className="mt-2 p-4 border-l-4 border-yellow-400 bg-yellow-50 rounded-md shadow-sm hover:shadow-md transition-shadow">
+            <p className="text-sm text-yellow-900 whitespace-pre-wrap">
+              {item.justification}
+            </p>
+          </div>
         </div>
       )}
 

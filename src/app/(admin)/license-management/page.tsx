@@ -43,7 +43,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { fetcher } from "@/lib/fetcher";
-import { formatCurrency } from "@/lib/utils/formatCurrency";
+
 import {
   License,
   LicenseResponse,

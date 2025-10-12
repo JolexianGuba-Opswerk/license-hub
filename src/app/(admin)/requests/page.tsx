@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,12 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Filter, Eye, Users } from "lucide-react";
+import { Search, Filter, Eye, Users, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetcher } from "@/lib/fetcher";
 
-// Skeleton Loader
 export const SkeletonLoader = () => (
   <div className="space-y-4">
     {Array.from({ length: 5 }).map((_, i) => (
@@ -43,12 +42,19 @@ export const SkeletonLoader = () => (
 
 export default function RequestsPage() {
   const router = useRouter();
-  const { data: requests, error, isLoading } = useSWR("/api/request", fetcher);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("active");
-
+  const {
+    data: requests,
+    error,
+    isLoading,
+  } = useSWR(`/api/request?archived=${activeTab === "archive"}`, fetcher, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    dedupingInterval: 1000 * 60 * 5,
+  });
   const viewRequestDetails = (id: string) => router.push(`/requests/${id}`);
   const createNewRequest = () => router.push("/requests/new");
 
@@ -68,7 +74,7 @@ export default function RequestsPage() {
     }
   };
 
-  // Filter requests based on search, status, and tab
+  // ✅ Updated filtering logic for archive
   const filteredRequests =
     requests?.filter((r) => {
       const matchesSearch =
@@ -81,12 +87,14 @@ export default function RequestsPage() {
         statusFilter === "all" || r.status === statusFilter.toUpperCase();
 
       const matchesTab =
-        activeTab === "active" ? r.status !== "DONE" : r.status === "DONE";
+        activeTab === "active"
+          ? !["DONE", "DENIED"].includes(r.status)
+          : ["DONE", "DENIED"].includes(r.status);
 
       return matchesSearch && matchesStatus && matchesTab;
     }) || [];
 
-  // Quick stats cards
+  // Stats
   const stats = [
     {
       label: "Total Requests",
@@ -111,17 +119,30 @@ export default function RequestsPage() {
   ];
 
   return (
-    <div className="container mx-auto py-6 p-5 space-y-6">
-      {/* Header with New Request button */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">License Requests</h1>
-          <p className="text-muted-foreground">
-            Manage and track all license requests
-          </p>
+    <div className="container mx-auto py-6 p-5 space-y-6 p-10">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between ">
+        <div className="flex items-center gap-4 ">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.back()}
+            className="h-9 w-9"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold tracking-tight">
+              License Requests
+            </h1>
+            <p className="text-muted-foreground">
+              Manage and track all license requests
+            </p>
+          </div>
         </div>
         <Button onClick={createNewRequest}>+ New Request</Button>
       </div>
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4 my-4">
         <div className="flex-1 relative">
@@ -148,7 +169,8 @@ export default function RequestsPage() {
           </SelectContent>
         </Select>
       </div>
-      {/* Stats Cards */}
+
+      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {stats.map((stat, idx) => (
           <Card key={idx}>
@@ -167,11 +189,10 @@ export default function RequestsPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-4">
             <TabsTrigger value="active">Active Requests</TabsTrigger>
-            <TabsTrigger value="archive">Archive</TabsTrigger>
+            <TabsTrigger value="archive">Archived</TabsTrigger>
           </TabsList>
 
           <TabsContent value={activeTab}>
-            {/* Requests Table */}
             <CardContent className="p-0">
               {isLoading ? (
                 <div className="p-4">

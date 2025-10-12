@@ -1,7 +1,7 @@
 // app/api/notifications/route.ts
 import { prisma } from "@/lib/prisma";
-// or your auth system
 import { createClient } from "@/lib/supabase/supabase-server";
+
 export async function GET() {
   const supabase = await createClient();
   const {

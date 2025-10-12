@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/supabase-server";
+import { RequestStatus } from "@prisma/client";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createClient();
     const {
@@ -13,19 +14,26 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const archived = searchParams.get("archived") === "true";
+
     const role = user.user_metadata.role;
     const department = user.user_metadata.department;
     const userId = user.id;
 
-    let whereCondition: any = {};
+    // FILTERING SECTION
+    const statusFilter = archived
+      ? { status: { in: [RequestStatus.FULFILLED, RequestStatus.DENIED] } }
+      : { status: { notIn: [RequestStatus.FULFILLED, RequestStatus.DENIED] } };
+    let whereCondition = {};
 
     if (role === "TEAM_LEAD" && department === "ITSG") {
       whereCondition = {};
     } else if (["TEAM_LEAD", "MANAGER"].includes(role)) {
       whereCondition = {
         OR: [
-          { requestor: { department } },
-          { requestedFor: { department } },
+          { requestorId: userId },
+          { requestedForId: userId },
           {
             items: {
               some: {
@@ -37,12 +45,29 @@ export async function GET() {
       };
     } else {
       whereCondition = {
-        OR: [{ requestorId: userId }, { requestedForId: userId }],
+        OR: [
+          { requestorId: userId },
+          { requestedForId: userId },
+          {
+            items: {
+              some: {
+                approvals: {
+                  some: {
+                    approverId: userId,
+                  },
+                },
+              },
+            },
+          },
+        ],
       };
     }
 
     const requests = await prisma.licenseRequest.findMany({
-      where: whereCondition,
+      where: {
+        AND: [whereCondition, statusFilter],
+      },
+
       orderBy: { createdAt: "desc" },
       include: {
         requestor: true,
@@ -65,7 +90,6 @@ export async function GET() {
       },
     });
 
-    //
     const formattedRequests = requests.map((r) => ({
       id: r.id,
       requesterName: r.requestor.name,

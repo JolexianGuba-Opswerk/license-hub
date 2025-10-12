@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { RequestItem } from "@/lib/schemas/request/request";
-import { License } from "@prisma/client";
+import { License, UserDetails } from "@prisma/client";
 
 export async function createRequest(
   requestor: {
@@ -46,6 +46,7 @@ export async function createRequest(
     for (const item of request.items) {
       // GET LICENSE OWNER (only if licenseId exists)
       let license: { owner: License["owner"] } | null = null;
+
       if (item.licenseId) {
         license = await prisma.license.findFirst({
           where: { id: item.licenseId },
@@ -70,6 +71,31 @@ export async function createRequest(
         });
       } else {
         errors.push("No ITSG team lead found");
+      }
+
+      // IF CURRENT USER IS NOT MANAGER THEN ADD MANAGER AS APPROVER
+      if (!requestor.isManager) {
+        const manager = await prisma.userDetails.findFirst({
+          where: {
+            id: requestor.id,
+          },
+          select: {
+            managerId: true,
+          },
+        });
+
+        if (manager?.managerId) {
+          await prisma.requestItemApproval.create({
+            data: {
+              requestItemId: item.id,
+              approverId: manager.managerId,
+              level: "MANAGER",
+              status: "PENDING",
+            },
+          });
+        } else {
+          errors.push(`No manager found this user`);
+        }
       }
 
       // OWNER approval (only if license exists and not ITSG-owned)

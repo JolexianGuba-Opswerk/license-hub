@@ -131,6 +131,7 @@ export default function UserManagementTable() {
               <SelectItem value="MANAGER">Manager</SelectItem>
               <SelectItem value="ADMIN">Admin</SelectItem>
               <SelectItem value="ACCOUNT_OWNER">Account Owner</SelectItem>
+              <SelectItem value="TEAM_LEAD">Team Lead</SelectItem>
               <SelectItem value="FINANCE">Finance</SelectItem>
             </SelectContent>
           </Select>

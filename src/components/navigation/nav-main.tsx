@@ -70,7 +70,7 @@ export function NavMain({
                       : ""
                   }
                 >
-                  <Link href={item.url}>
+                  <Link href={item.url} prefetch>
                     {item.icon && <item.icon />}
                     <span>{item.title}</span>
                   </Link>

@@ -36,9 +36,8 @@ export default function AssignmentRow({
       case "ITSG":
         return <Badge variant="default">ITSG</Badge>;
       case "NON_ITSG":
-        return <Badge variant="secondary">External</Badge>;
-      case "MIXED":
-        return <Badge variant="outline">Mixed</Badge>;
+        return <Badge variant="secondary">MIXED</Badge>;
+
       default:
         return <Badge variant="outline">{handlerType}</Badge>;
     }
@@ -47,11 +46,11 @@ export default function AssignmentRow({
   const canAssign = assignment.items.some(
     (item: any) => item.handler === "ITSG" && item.status === "READY"
   );
-  console.log(assignment);
+
   return (
     <TableRow
       className="cursor-pointer hover:bg-muted/50"
-      onClick={() => viewAssignmentDetails(assignment.id)}
+      onClick={() => viewAssignmentDetails(assignment.request_id)}
     >
       <TableCell>
         <div>
@@ -76,7 +75,7 @@ export default function AssignmentRow({
 
       <TableCell>
         <div className="space-y-1">
-          {assignment.items.slice(0, 2).map((item, idx: number) => (
+          {assignment.items.slice(0, 3).map((item, idx: number) => (
             <div key={idx} className="flex items-center gap-2 text-sm">
               <Package className="h-3 w-3 text-muted-foreground" />
               <span>{item.name}</span>
@@ -85,15 +84,8 @@ export default function AssignmentRow({
               </Badge>
             </div>
           ))}
-          {assignment.totalItems > 2 && (
-            <div className="text-sm text-muted-foreground">
-              +{assignment.totalItems - 2} more
-            </div>
-          )}
         </div>
       </TableCell>
-
-      <TableCell>{getHandlerBadge(assignment.handler)}</TableCell>
 
       <TableCell>
         <Badge variant={getStatusVariant(assignment.status)}>
@@ -102,24 +94,18 @@ export default function AssignmentRow({
       </TableCell>
 
       <TableCell>
-        <div className="text-sm">{assignment.approvedBy}</div>
-        <div className="text-xs text-muted-foreground">
-          {new Date(assignment.approvedAt).toLocaleDateString()}
-        </div>
-      </TableCell>
-
-      <TableCell>
         <div className="flex items-center gap-2">
           <div className="flex-1 bg-secondary rounded-full h-2">
             <div
               className="bg-green-500 h-2 rounded-full"
               style={{
-                width: `${assignment.progressPercent}%`,
+                width: `${assignment.analytics.progressPercent}%`,
               }}
             />
           </div>
           <span className="text-sm text-muted-foreground">
-            {assignment.analytics.readyToAssignCount}/{assignment.items.length}
+            {assignment.analytics.assignedCount}/
+            {assignment.analytics.readyToAssignCount}
           </span>
         </div>
       </TableCell>
@@ -131,7 +117,7 @@ export default function AssignmentRow({
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              viewAssignmentDetails(assignment.id);
+              viewAssignmentDetails(assignment.request_id);
             }}
           >
             <Eye className="h-4 w-4 mr-1" /> View
@@ -139,7 +125,7 @@ export default function AssignmentRow({
           {canAssign && (
             <Button
               size="sm"
-              onClick={(e) => startAssignment(assignment.id, e)}
+              onClick={(e) => startAssignment(assignment.request_id, e)}
             >
               <CheckCircle className="h-4 w-4 mr-1" /> Assign
             </Button>

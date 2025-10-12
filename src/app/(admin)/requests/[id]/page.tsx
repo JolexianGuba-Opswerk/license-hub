@@ -40,7 +40,7 @@ export default function RequestDetailsPage() {
   if (!request) return <p className="p-6 text-center">Request Not Found</p>;
 
   const targetUser = request.requestedFor || request.requestor;
-
+  console.log(request);
   return (
     <div className="container mx-auto w-full p-10 space-y-6">
       <RequestHeader request={request} router={router} />
