@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Filters from "@/components/admin/license-assignment/Filters";
-import StatsCards from "@/components/admin/license-assignment/StatsCards";
 import AssignmentsTable from "@/components/admin/license-assignment/AssignmentTable";
 import AssignmentsTableSkeleton from "@/components/admin/license-assignment/AssignmentsTableSkeleton";
 import useSWR from "swr";
@@ -14,12 +13,10 @@ export default function AssignmentsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const {
-    data: assignments,
-    error,
-    isLoading,
-    mutate,
-  } = useSWR("/api/license-assignment", fetcher);
+  const { data: assignments, isLoading } = useSWR(
+    "/api/license-assignment",
+    fetcher
+  );
 
   // Filter assignments based on search and status
   const filteredAssignments =
@@ -47,23 +44,23 @@ export default function AssignmentsPage() {
   };
 
   return (
-    <div className="container mx-auto py-6 p-5">
+    <div className="container mx-auto py-6 p-5 space-y-6 p-10">
       <h1 className="text-3xl font-bold mb-1">License Assignments</h1>
       <p className="text-muted-foreground mb-6">
         Manage license assignments for approved requests
       </p>
-
       <Filters
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         statusFilter={statusFilter}
         setStatusFilter={setStatusFilter}
       />
+
       {isLoading ? (
         <AssignmentsTableSkeleton />
       ) : (
         <>
-          <StatsCards assignments={filteredAssignments} />
+          {/* <StatsCards assignments={filteredAssignments} /> */}
           <AssignmentsTable
             assignments={filteredAssignments}
             viewAssignmentDetails={viewAssignmentDetails}

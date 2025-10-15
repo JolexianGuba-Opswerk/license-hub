@@ -21,7 +21,7 @@ export async function GET() {
     //ITSG BY DEFAULT WILL SEE EVERYTHIN
     if (department === "ITSG") {
       whereCondition = {
-        NOT: [{ status: "PENDING" }, { status: "DENIED" }],
+        status: "ASSIGNING",
       };
     } else if (
       !["TEAM_LEAD", "MANAGER", "ADMIN", "ACCOUNT_OWNER"].includes(role)
@@ -31,7 +31,14 @@ export async function GET() {
     } else {
       // MANAGER / TEAM LEADS WILL SEE REQUEST A LICENSE THAT IS OWNED BY THEIR DEPARTMETNS
       whereCondition = {
-        OR: [{ items: { some: { license: { owner: department } } } }],
+        status: "ASSIGNING",
+        items: {
+          some: {
+            license: {
+              owner: department,
+            },
+          },
+        },
       };
     }
 
@@ -58,27 +65,25 @@ export async function GET() {
 
     const formattedRequests = requests.map((r) => {
       // Initialize counters
-      let readyToAssign = 0;
+      const readyToAssign = r.items.filter(
+        (i) => i.status === "APPROVED" || i.status === "FULFILLED"
+      ).length;
       let assignedCount = 0;
 
       const approvedItems: {
         type: "LICENSE" | "OTHER" | "EMAIL";
         name: string;
         vendor: string;
-        status: "APPROVED";
+        status: "APPROVED" | "FULFILLED";
         handler: string;
       }[] = [];
       r.items.forEach((i) => {
         // Count statuses
-        if (i.status === "APPROVED") readyToAssign++;
-        if (
-          i.approvals.every((i) => i.status === "APPROVED") &&
-          i.status === "FULFILLED"
-        )
-          assignedCount++;
+
+        if (i.status === "FULFILLED") assignedCount++;
 
         // GETTING ALL THE APPROVED ITEMS ONLY
-        if (i.status === "APPROVED") {
+        if (i.status === "APPROVED" || i.status === "FULFILLED") {
           approvedItems.push({
             type: i.type,
             name:
@@ -101,8 +106,6 @@ export async function GET() {
           ? "FULFILLED"
           : r.items.some((i) => i.status === "FULFILLED")
           ? "PARTIALLY_ASSIGNED"
-          : r.items.some((i) => i.status === "DENIED")
-          ? "DENIED"
           : "ASSIGNING",
         requesterEmail: r.requestor.email,
         requestorName: r.requestor?.name,

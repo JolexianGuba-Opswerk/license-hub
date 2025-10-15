@@ -48,7 +48,7 @@ export default function RequestsPage() {
   const [activeTab, setActiveTab] = useState("active");
   const {
     data: requests,
-    error,
+
     isLoading,
   } = useSWR(`/api/request?archived=${activeTab === "archive"}`, fetcher, {
     revalidateOnFocus: false,
@@ -74,7 +74,6 @@ export default function RequestsPage() {
     }
   };
 
-  // ✅ Updated filtering logic for archive
   const filteredRequests =
     requests?.filter((r) => {
       const matchesSearch =
@@ -88,35 +87,35 @@ export default function RequestsPage() {
 
       const matchesTab =
         activeTab === "active"
-          ? !["DONE", "DENIED"].includes(r.status)
-          : ["DONE", "DENIED"].includes(r.status);
+          ? !["FULFILLED", "DENIED"].includes(r.status)
+          : ["FULFILLED", "DENIED"].includes(r.status);
 
       return matchesSearch && matchesStatus && matchesTab;
     }) || [];
 
   // Stats
-  const stats = [
-    {
-      label: "Total Requests",
-      value: requests?.length || 0,
-      color: "text-blue-600",
-    },
-    {
-      label: "Pending",
-      value: requests?.filter((r) => r.status === "PENDING").length || 0,
-      color: "text-yellow-600",
-    },
-    {
-      label: "Approved",
-      value: requests?.filter((r) => r.status === "APPROVED").length || 0,
-      color: "text-green-600",
-    },
-    {
-      label: "Denied",
-      value: requests?.filter((r) => r.status === "DENIED").length || 0,
-      color: "text-red-600",
-    },
-  ];
+  // const stats = [
+  //   {
+  //     label: "Total Requests",
+  //     value: requests?.length || 0,
+  //     color: "text-blue-600",
+  //   },
+  //   {
+  //     label: "Pending",
+  //     value: requests?.filter((r) => r.status === "PENDING").length || 0,
+  //     color: "text-yellow-600",
+  //   },
+  //   {
+  //     label: "Approved",
+  //     value: requests?.filter((r) => r.status === "APPROVED").length || 0,
+  //     color: "text-green-600",
+  //   },
+  //   {
+  //     label: "Denied",
+  //     value: requests?.filter((r) => r.status === "DENIED").length || 0,
+  //     color: "text-red-600",
+  //   },
+  // ];
 
   return (
     <div className="container mx-auto py-6 p-5 space-y-6 p-10">
@@ -165,13 +164,13 @@ export default function RequestsPage() {
             <SelectItem value="APPROVED">Approved</SelectItem>
             <SelectItem value="ASSIGNING">Assigning</SelectItem>
             <SelectItem value="DENIED">Denied</SelectItem>
-            <SelectItem value="DONE">Completed</SelectItem>
+            <SelectItem value="FULFILLED">Completed</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {stats.map((stat, idx) => (
           <Card key={idx}>
             <CardContent className="p-4 text-center">
@@ -182,7 +181,7 @@ export default function RequestsPage() {
             </CardContent>
           </Card>
         ))}
-      </div>
+      </div> */}
 
       {/* Tabs */}
       <Card className="p-3">

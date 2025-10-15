@@ -4,9 +4,11 @@ import { createClient } from "@/lib/supabase/supabase-server";
 import { createRequest } from "@/data/request/request";
 import { prisma } from "@/lib/prisma";
 import { AddApproverInput } from "@/lib/schemas/request/request";
+import { sendNotification } from "@/lib/services/notification/notificationService";
+import { NotificationType } from "@prisma/client";
 
 interface SubmitRequestInput {
-  requestItems: any[];
+  requestItems;
   requestedFor: string | null;
 }
 
@@ -25,20 +27,7 @@ export async function submitRequestAction({
       return { success: false, error: "Unauthorized" };
     }
 
-    const userDetails = await prisma.userDetails.findUnique({
-      where: { id: user.id },
-      select: { id: true, role: true, department: true },
-    });
-
-    if (!userDetails) {
-      return { success: false, error: "User details not found." };
-    }
-
-    if (
-      requestedFor &&
-      requestedFor !== "self" &&
-      requestedFor === userDetails.id
-    ) {
+    if (requestedFor && requestedFor !== "self" && requestedFor === user.id) {
       return {
         success: false,
         error:
@@ -47,7 +36,7 @@ export async function submitRequestAction({
     }
 
     if (requestedFor) {
-      if (userDetails.role === "EMPLOYEE") {
+      if (user.user_metadata.role === "EMPLOYEE") {
         return {
           success: false,
           error:
@@ -64,7 +53,7 @@ export async function submitRequestAction({
         return { success: false, error: "Requested user not found." };
       }
 
-      if (requestedUser.department !== userDetails.department) {
+      if (requestedUser.department !== user.user_metadata.department) {
         return {
           success: false,
           error:
@@ -73,13 +62,12 @@ export async function submitRequestAction({
       }
     }
 
-    const requestedForId =
-      requestedFor === "self" ? userDetails.id : requestedFor;
+    const requestedForId = requestedFor === "self" ? user.id : requestedFor;
 
-    const { error, warnings } = await createRequest(
+    const { error } = await createRequest(
       {
-        id: userDetails.id,
-        isManager: userDetails.role === "MANAGER",
+        id: user.id,
+        isManager: user.user_metadata.role === "MANAGER",
       },
       requestedForId,
       requestItems
@@ -89,7 +77,7 @@ export async function submitRequestAction({
       return { success: false, error };
     }
 
-    return { success: true, warnings: warnings };
+    return { success: true, warnings: error };
   } catch (error) {
     console.error("submitRequestAction error:", error);
     return {
@@ -122,149 +110,187 @@ export async function processRequestItemAction({
       return { success: false, error: "Unauthorized" };
     }
 
-    // CHECK APPROVAL OWNERSHIP
-    const approval = await prisma.requestItemApproval.findUnique({
-      where: { id: approvalId },
-      select: { approverId: true, status: true, requestItemId: true },
+    const result = await prisma.$transaction(async (tx) => {
+      // Validate ownership
+      const approval = await tx.requestItemApproval.findUnique({
+        where: { id: approvalId },
+        select: { approverId: true, status: true, requestItemId: true },
+      });
+
+      if (!approval || approval.approverId !== user.id) {
+        throw new Error("Not authorized for this approval.");
+      }
+      if (approval.status !== "PENDING") {
+        throw new Error("Approval already processed.");
+      }
+
+      //  Update the approval
+      await tx.requestItemApproval.update({
+        where: { id: approvalId },
+        data: {
+          status: decision,
+          reason: reason ?? null,
+          approvedAt: new Date(),
+        },
+      });
+
+      // Update the request item status
+      const itemApprovals = await tx.requestItemApproval.findMany({
+        where: { requestItemId },
+        select: { status: true },
+      });
+
+      let itemStatus: "APPROVED" | "DENIED" | "REVIEWING";
+      if (itemApprovals.some((a) => a.status === "DENIED")) {
+        itemStatus = "DENIED";
+      } else if (itemApprovals.every((a) => a.status === "APPROVED")) {
+        itemStatus = "APPROVED";
+      } else {
+        itemStatus = "REVIEWING";
+      }
+
+      const updatedItem = await tx.requestItem.update({
+        where: { id: requestItemId },
+        data: { status: itemStatus },
+      });
+
+      // Update parent license request status
+      const siblingItems = await tx.requestItem.findMany({
+        where: { requestId: updatedItem.requestId },
+        select: { status: true },
+      });
+
+      const statuses = siblingItems.map((i) => i.status);
+
+      let parentStatus: "ASSIGNING" | "DENIED" | "REVIEWING" | "PENDING";
+
+      if (statuses.some((s) => s === "DENIED")) {
+        parentStatus = "ASSIGNING";
+      } else if (statuses.every((s) => s === "APPROVED")) {
+        parentStatus = "ASSIGNING";
+      } else if (statuses.every((s) => s === "PENDING")) {
+        parentStatus = "PENDING";
+      } else {
+        parentStatus = "REVIEWING";
+      }
+
+      // Only update & notify if the parent status changed
+      const parentRequest = await tx.licenseRequest.findUnique({
+        where: { id: updatedItem.requestId },
+        select: { status: true, requestorId: true, requestedForId: true },
+      });
+
+      if (!parentRequest) throw new Error("Parent request not found");
+
+      if (parentRequest.status !== parentStatus) {
+        await tx.licenseRequest.update({
+          where: { id: updatedItem.requestId },
+          data: { status: parentStatus },
+        });
+
+        const usersToNotify = [parentRequest.requestorId];
+        if (
+          parentRequest.requestedForId &&
+          parentRequest.requestedForId !== parentRequest.requestorId
+        ) {
+          usersToNotify.push(parentRequest.requestedForId);
+        }
+
+        const licenseName =
+          updatedItem.type === "LICENSE"
+            ? (
+                await tx.license.findUnique({
+                  where: { id: updatedItem.licenseId! },
+                })
+              )?.name ?? "Unknown License"
+            : updatedItem.requestedLicenseName ?? "Unknown License";
+
+        const vendor =
+          updatedItem.type === "LICENSE"
+            ? (
+                await tx.license.findUnique({
+                  where: { id: updatedItem.licenseId! },
+                })
+              )?.vendor ?? "Unknown Vendor"
+            : updatedItem.requestedLicenseVendor ?? "Unknown Vendor";
+
+        await Promise.all(
+          usersToNotify.map((userId) =>
+            sendNotification(
+              {
+                userId,
+                type: NotificationType.LICENSE_REQUESTED,
+                payload: {
+                  requestId: updatedItem.requestId,
+                  status: parentStatus,
+                  reason,
+                  licenseName,
+                  vendor,
+                },
+                url: `/requests/${updatedItem.requestId}`,
+              },
+              tx
+            )
+          )
+        );
+      }
+
+      return { success: true, itemStatus, parentStatus, error: "" };
     });
 
-    if (!approval || approval.approverId !== user.id) {
-      return { success: false, error: "Not authorized for this approval." };
-    }
-    if (approval.status !== "PENDING") {
-      return { success: false, error: "Already processed." };
-    }
-
-    // UPDATE THE APPROVAL
-    await prisma.requestItemApproval.update({
-      where: { id: approvalId },
-      data: {
-        status: decision,
-        reason: reason ?? null,
-        approvedAt: new Date(),
-      },
-    });
-
-    // CHECK ALL APPROVALS
-    const approvals = await prisma.requestItemApproval.findMany({
-      where: { requestItemId },
-      select: { status: true },
-    });
-
-    const allApproved = approvals.every((a) => a.status === "APPROVED");
-    const anyApproved = approvals.some((a) => a.status === "APPROVED");
-    const anyDenied = approvals.some((a) => a.status === "DENIED");
-    const allDenied = approvals.every((a) => a.status === "DENIED");
-
-    // UPDATE REQUEST ITEM STATUS
-    const updatedItem = await prisma.requestItem.update({
-      where: { id: requestItemId },
-      data: {
-        status: allApproved
-          ? "APPROVED"
-          : allDenied
-          ? "DENIED"
-          : anyDenied
-          ? "DENIED"
-          : anyApproved
-          ? "REVIEWING"
-          : "PENDING",
-      },
-    });
-
-    // CHECK PARENT LICENSE REQUEST STATUS
-    const items = await prisma.requestItem.findMany({
-      where: { requestId: updatedItem.requestId },
-      select: { status: true },
-    });
-
-    // EXTRACT ITEM STATUS
-    const statuses = items.map((i) => i.status);
-
-    // CHECK PARENT STATUS
-    let parentStatus: "ASSIGNING" | "DENIED" | "REVIEWING" | "PENDING";
-
-    if (statuses.every((s) => s === "APPROVED")) {
-      parentStatus = "ASSIGNING";
-    } else if (statuses.every((s) => s === "DENIED")) {
-      parentStatus = "DENIED";
-    } else if (
-      statuses.some((s) => s === "APPROVED") ||
-      statuses.some((s) => s === "DENIED")
-    ) {
-      parentStatus = "REVIEWING";
-    } else {
-      parentStatus = "PENDING";
-    }
-
-    // UPDATE THE PARENT REQUEST
-    await prisma.licenseRequest.update({
-      where: { id: updatedItem.requestId },
-      data: { status: parentStatus },
-    });
-
-    return { success: true };
-  } catch (err) {
-    console.error("processRequestItemAction error:", err);
+    return result;
+  } catch (err: any) {
     return {
       success: false,
-      error: `Failed to ${decision.toLowerCase()} request item.`,
+      error: err.message ?? "Failed to process request item.",
     };
   }
 }
 
-// export async function addApproverToRequestItem(
-//   requestItemId: string,
-//   data: AddApproverInput
-// ) {
-//   try {
-//     // CHECK IF APPROVER EXIST
-//     const approver = await prisma.userDetails.findUnique({
-//       where: { id: data.approverId },
-//       select: { id: true, role: true },
-//     });
+export async function addApproverToRequestItem(
+  requestItemId: string,
+  data: AddApproverInput
+) {
+  try {
+    // Check if approver exists
+    const approver = await prisma.userDetails.findUnique({
+      where: { id: data.approverId },
+      select: { id: true, role: true },
+    });
 
-//     if (!approver) {
-//       return { error: "Approver not found" };
-//     }
+    if (!approver) {
+      return { error: "Approver not found" };
+    }
 
-//     // PREVENT DUPLICATES
-//     const existing = await prisma.requestItemApproval.findFirst({
-//       where: {
-//         requestItemId,
-//         approverId: data.approverId,
-//       },
-//       select: {
-//         id: true,
-//       },
-//     });
+    // Prevent duplicates (existing approver already assigned to this request item)
+    const existingApproval = await prisma.requestItemApproval.findFirst({
+      where: {
+        requestItemId,
+        approverId: data.approverId,
+      },
+      select: { id: true, status: true },
+    });
 
-//     if (existing) {
-//       return { error: "Approver already assigned to this request item" };
-//     }
-//     const isStillPending = await prisma.requestItemApproval.findFirst({
-//       where: {
-//         requestItemId,
-//         approverId: data.approverId,
-//       },
-//       select: {
-//         id: true,
-//       },
-//     });
+    if (existingApproval) {
+      if (existingApproval.status === "PENDING") {
+        return { error: "This approver is already assigned and pending." };
+      }
+      return { error: "This approver has already been assigned before." };
+    }
 
-//     // APPROVAL CREATION
-//     const approval = await prisma.requestItemApproval.create({
-//       data: {
-//         requestItemId,
-//         approverId: data.approverId,
-//         level: data.level,
-//         status: "PENDING",
-//       },
-//     });
+    // Create the new approval entry
+    const approval = await prisma.requestItemApproval.create({
+      data: {
+        requestItemId,
+        approverId: data.approverId,
+        level: data.level,
+        status: "PENDING",
+      },
+    });
 
-//     return { error: "", data: approval };
-//   } catch (error) {
-//     console.error("Error adding approver:", error);
-//     return { error: "Something went wrong while adding approver" };
-//   }
-// }
+    return { data: approval, error: "" };
+  } catch (error) {
+    console.error("Error adding approver:", error);
+    return { error: "Something went wrong while adding the approver." };
+  }
+}

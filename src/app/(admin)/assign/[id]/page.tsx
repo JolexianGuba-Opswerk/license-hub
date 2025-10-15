@@ -6,7 +6,7 @@ import useSWR from "swr";
 import { createClient } from "@/lib/supabase/supabase-client";
 import { fetcher } from "@/lib/fetcher";
 import { motion } from "framer-motion";
-import { ArrowLeft, Package } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";

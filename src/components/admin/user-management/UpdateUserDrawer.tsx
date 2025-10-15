@@ -203,6 +203,7 @@ export function UpdateUserDrawer({
                   <SelectItem value="ADMIN">Admin</SelectItem>
                   <SelectItem value="ACCOUNT_OWNER">Account Owner</SelectItem>
                   <SelectItem value="FINANCE">Finance</SelectItem>
+                  <SelectItem value="TEAM_LEAD">Team Lead</SelectItem>
                 </SelectContent>
               </Select>
             </div>

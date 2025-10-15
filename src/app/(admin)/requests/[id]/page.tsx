@@ -8,7 +8,15 @@ import { fetcher } from "@/lib/fetcher";
 import { RequestDetailsSkeleton } from "@/components/admin/request/RequestDetailsSkeleton";
 import { RequestHeader } from "@/components/admin/request/RequestHeader";
 import { RequestInfo } from "@/components/admin/request/RequestInfo";
-import { RequestItemCard } from "@/components/admin/request/RequestItemCard";
+import dynamic from "next/dynamic";
+
+const RequestItemCard = dynamic(
+  () =>
+    import("@/components/admin/request/RequestItemCard").then(
+      (mod) => mod.RequestItemCard
+    ),
+  { ssr: false }
+);
 
 export default function RequestDetailsPage() {
   const params = useParams();
@@ -40,7 +48,7 @@ export default function RequestDetailsPage() {
   if (!request) return <p className="p-6 text-center">Request Not Found</p>;
 
   const targetUser = request.requestedFor || request.requestor;
-  console.log(request);
+
   return (
     <div className="container mx-auto w-full p-10 space-y-6">
       <RequestHeader request={request} router={router} />

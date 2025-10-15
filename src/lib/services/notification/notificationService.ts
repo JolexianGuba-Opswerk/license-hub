@@ -1,51 +1,57 @@
-import { PrismaClient, NotificationType } from "@prisma/client";
+import { PrismaClient, NotificationType, Prisma } from "@prisma/client";
 import { notificationTemplates } from "./notificationTemplate";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 type CreateNotificationInput = {
   userId: string;
   type: NotificationType;
-  payload?: any;
+  payload?: Record<string, any>;
   url?: string | null;
   sendEmail?: boolean;
 };
 
-export async function sendNotification(input: CreateNotificationInput) {
-  // Generate title + message from template
-  const template = notificationTemplates[input.type];
-  const { title, message } = template(input.payload);
-
-  const notification = await prisma.notification.create({
-    data: {
-      userId: input.userId,
-      title,
-      message,
-      type: input.type,
-      url: input.url ?? null,
-      read: false,
-    },
-  });
-
-  if (input.sendEmail) {
-    // TODO: For send email purposes.
-  }
-
-  return notification;
-}
-
-export async function readNotificaiton(notificationId: string) {
+// PUSH NOTIFICATION WITH TRANSACTION WRAP
+export async function sendNotification(
+  input: CreateNotificationInput,
+  tx?: Prisma.TransactionClient
+) {
   try {
-    await prisma.notification.update({
-      where: {
-        id: notificationId,
-      },
+    const client = tx || prisma;
+
+    const template = notificationTemplates[input.type];
+    const { title, message } = template(input.payload || {});
+
+    const notification = await client.notification.create({
       data: {
-        read: true,
+        userId: input.userId,
+        title,
+        message,
+        type: input.type,
+        url: input.url ?? null,
+        read: false,
       },
     });
+
+    if (input.sendEmail) {
+      // TODO: add email sending here if needed later
+    }
+
+    return notification;
+  } catch (err) {
+    console.error("Failed to send notification:", err);
+    throw new Error("Notification creation failed");
+  }
+}
+// MARK AS READ NOTIFICATION
+export async function readNotification(notificationId: string) {
+  try {
+    await prisma.notification.update({
+      where: { id: notificationId },
+      data: { read: true },
+    });
     return { success: true };
-  } catch {
+  } catch (err) {
+    console.error("Failed to mark notification as read:", err);
     return { success: false, error: "Something went wrong" };
   }
 }

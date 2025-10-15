@@ -98,6 +98,7 @@ export interface License {
   _count: {
     licenseKeys: number;
   };
+  assignedKeysCount: number;
   unassignedKeysCount: number;
 }
 

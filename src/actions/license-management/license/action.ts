@@ -40,7 +40,7 @@ export async function createLicenseAction(formData: CreateLicense) {
     id: isPermitted.data.id,
     email: isPermitted.data.email!,
   });
-  if (!license.data) {
+  if (!license?.data) {
     return { success: true, error: "Something went wrong" };
   }
 

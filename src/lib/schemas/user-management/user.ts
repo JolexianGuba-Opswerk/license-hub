@@ -33,7 +33,14 @@ export const updateUserSchema = z.object({
     .min(2, "Name must be at least 2 characters")
     .max(100, "Name is too long"),
   email: z.string().email("Invalid email address"),
-  role: z.enum(["EMPLOYEE", "MANAGER", "ADMIN", "ACCOUNT_OWNER", "FINANCE"]),
+  role: z.enum([
+    "EMPLOYEE",
+    "MANAGER",
+    "ADMIN",
+    "ACCOUNT_OWNER",
+    "FINANCE",
+    "TEAM_LEAD",
+  ]),
   department: z.enum(["ITSG", "SRE", "HR", "SSED"]),
   position: z.string().max(100, "Position is too long").nullable(),
   managerId: z
