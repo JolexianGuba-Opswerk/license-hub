@@ -1,6 +1,7 @@
 "use server";
 import {
   createUser,
+  deleteUser,
   getManagers,
   updateUser,
 } from "@/data/user-management/user";
@@ -82,6 +83,18 @@ export async function updateUserAction(
   return { success: true };
 }
 
+export async function deleteUserAction(userId: string) {
+  // Update User Permission Check
+  const isPermitted = await UserManagementPermission();
+  if (!isPermitted.success || !isPermitted.data) {
+    return { success: false, error: isPermitted.error ?? "Unathorized" };
+  }
+  const response = await deleteUser(userId);
+  if (response.error || !response.data) {
+    return { success: false, error: response.error ?? "Something went wrong!" };
+  }
+  return { success: true };
+}
 export async function getManagersAction() {
   return await getManagers();
 }

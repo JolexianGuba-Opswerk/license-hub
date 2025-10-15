@@ -240,7 +240,7 @@ export default function LicenseDetailsPage() {
           <p className="text-muted-foreground mb-6">
             The license youre looking for doesnt exist or has been removed.
           </p>
-          <Button onClick={() => router.push("/license-management")}>
+          <Button onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to License Management
           </Button>

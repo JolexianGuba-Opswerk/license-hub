@@ -21,9 +21,10 @@ import { Label } from "@/components/ui/label";
 import { UserPlus, Loader2 } from "lucide-react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
-import { addApproverToRequestItem } from "@/actions/request/action";
+// import { addApprover } from "@/actions/request/action";
 import { toast } from "sonner";
 import { ApprovalLevel } from "@prisma/client";
+import { addApproverToRequestItem } from "@/actions/request/action";
 
 interface AddApproverDialogProps {
   requestItemId: string;
@@ -42,16 +43,17 @@ export function AddApproverDialog({
   const { data: approvers, mutate } = useSWR(`/api/request/approver`, fetcher);
 
   // TO AVOID SELECTING OWN ID
-  const filteredApprovers = (approvers || []).filter(
-    (approver) =>
-      !currentApprovers.some((current) => current.approverId === approver.id)
-  );
+  const filteredApprovers = (approvers ?? []).filter((approver) => {
+    const currents = currentApprovers ?? [];
+    return !currents.some((current) => current.approverId === approver.id);
+  });
 
   const handleAddApprover = async () => {
     if (!selectedApprover || !selectedLevel) return;
 
     setIsAdding(true);
     try {
+      // TODO : ADD ACTION IN HERE
       const response = await addApproverToRequestItem(requestItemId, {
         approverId: selectedApprover,
         level: selectedLevel,

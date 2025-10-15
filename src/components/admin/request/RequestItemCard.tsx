@@ -12,11 +12,14 @@ import { AddApproverDialog } from "./AddApproverDialog";
 import { ApprovalProgress } from "./ApprovalProgress";
 import { DeclineDialog } from "./DeclineDialog";
 import { RequestItemApproval } from "@prisma/client";
-
+import { CheckCircle, ShoppingCart } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CheckCircle2, XCircle } from "lucide-react";
 
+import { useRouter } from "next/navigation";
+
 export function RequestItemCard({ item, request, currentUser, mutate }) {
+  const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [processingItem, setProcessingItem] = useState<string | null>(null);
 
@@ -29,57 +32,66 @@ export function RequestItemCard({ item, request, currentUser, mutate }) {
     );
     if (!myApproval) return;
 
-    const response = await processRequestItemAction({
-      requestItemId: item.id,
-      approvalId: myApproval.id,
-      decision: "APPROVED",
-    }).finally(() => setIsSaving(false));
+    try {
+      const response = await processRequestItemAction({
+        requestItemId: item.id,
+        approvalId: myApproval.id,
+        decision: "APPROVED",
+      });
 
-    if (response.error) {
-      toast.error(response.error || "Something went wrong");
-    } else {
+      if (!response.success) {
+        toast.error(response.error || "Something went wrong");
+        return;
+      }
+
       toast.success("Approved Successfully");
       mutate();
+    } catch {
+      toast.error("Failed to approve request item");
+    } finally {
+      setIsSaving(false);
+      setProcessingItem(null);
     }
   };
 
   return (
-    <div className="p-6 border rounded-xl shadow-sm hover:shadow-md transition-shadow bg-white">
+    <div className="p-4 sm:p-6 border rounded-xl shadow-sm hover:shadow-md transition-shadow bg-white w-full flex flex-col gap-4">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-3">
-        <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <Package className="h-5 w-5 text-muted-foreground" />
-          <h3 className="text-xl font-semibold">
+          <h3 className="text-lg sm:text-xl font-semibold truncate">
             {item.license?.name ||
               item.requestedLicenseName ||
               "New License Request"}
           </h3>
-          <Badge variant="outline">
+          <Badge variant="outline" className="text-xs sm:text-sm">
             {item.license?.owner ? ` ${item.license?.owner}` : "New Item"}
           </Badge>
-          <Badge variant="secondary">
+          <Badge variant="secondary" className="text-xs sm:text-sm">
             {item.status.charAt(0).toUpperCase() +
               item.status.slice(1).toLowerCase()}
           </Badge>
         </div>
+
         {currentUser?.user_metadata?.department === "ITSG" &&
           currentUser?.user_metadata?.role === "TEAM_LEAD" &&
           item.status === "PENDING" && (
             <AddApproverDialog
               requestItemId={item.id}
-              currentApprovers={item.approvals}
+              currentApprovers={item.approvals ?? []}
             />
           )}
       </div>
 
-      <Separator className="my-4" />
+      <Separator className="my-2 sm:my-4" />
 
       {/* Approval Progress */}
       <ApprovalProgress approvals={item.approvals} />
 
       {/* Justification */}
       {item.justification && (
-        <div className="mb-4">
+        <div className="mb-2 sm:mb-4">
           <Label className="text-sm font-medium flex items-center gap-2">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -103,7 +115,7 @@ export function RequestItemCard({ item, request, currentUser, mutate }) {
             </svg>
             Business Justification
           </Label>
-          <div className="mt-2 p-4 border-l-4 border-yellow-400 bg-yellow-50 rounded-md shadow-sm hover:shadow-md transition-shadow">
+          <div className="mt-2 p-3 sm:p-4 border-l-4 border-yellow-400 bg-yellow-50 rounded-md shadow-sm hover:shadow-md transition-shadow">
             <p className="text-sm text-yellow-900 whitespace-pre-wrap">
               {item.justification}
             </p>
@@ -111,43 +123,112 @@ export function RequestItemCard({ item, request, currentUser, mutate }) {
         </div>
       )}
 
-      <Separator className="my-4" />
+      <Separator className=" sm:my-4" />
 
-      {/* Actions / Status */}
+      {/* ACTIONS SECTION */}
+      {item.canTakeAction && item.status === "PENDING" ? (
+        <div>
+          {item.needsPurchase && (
+            <div className="pb-2">
+              <Alert className="border border-yellow-300 bg-yellow-50 text-yellow-800 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center space-x-2">
+                  <ShoppingCart className="h-5 w-5 text-yellow-600" />
+                  <div>
+                    <AlertTitle className="font-semibold">
+                      Needs Purchase
+                    </AlertTitle>
+                    <AlertDescription className="text-sm">
+                      No available seats or license keys. Please request a
+                      purchase first
+                    </AlertDescription>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 sm:mt-0 border-yellow-400 text-yellow-700 hover:bg-yellow-100"
+                  onClick={() => {
+                    router.push(`/procurement/new/?requestItemId=${item.id}`);
+                  }}
+                >
+                  Purchase
+                </Button>
+              </Alert>
+            </div>
+          )}
 
-      {item.canTakeAction ? (
-        // Approver view
-        <div className="flex gap-3 pt-2">
-          <Button
-            onClick={approveItem}
-            className="flex-1"
-            disabled={processingItem === item.id || isSaving}
-          >
-            {processingItem === item.id || isSaving
-              ? "Processing..."
-              : "Approve"}
-          </Button>
-          <DeclineDialog
-            item={item}
-            mutate={mutate}
-            currentUser={currentUser}
-            isSaving={isSaving}
-            setIsSaving={setIsSaving}
-          />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 pt-2">
+            {/* DECLINE BUTTON */}
+            {item && (
+              <DeclineDialog
+                item={item}
+                mutate={mutate}
+                currentUser={currentUser}
+                isSaving={isSaving}
+                setIsSaving={setIsSaving}
+              />
+            )}
+
+            {/* APPROVE BUTTON */}
+            <Button
+              onClick={approveItem}
+              className="flex-1 w-full sm:w-auto bg-green-700 hover:bg-green-800 text-white"
+              disabled={processingItem === item.id || isSaving}
+            >
+              {processingItem === item.id || isSaving ? (
+                "Processing..."
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Approve
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       ) : (
-        // Requester or Viewer view
-        <div className="pt-2">
+        // STATUS MESSAGE SECTION
+        <div className=" space-y-2">
+          {/* Status Messages */}
           {item.status === "APPROVED" && (
             <Alert className="border-green-200 bg-green-50 text-green-700">
               <CheckCircle2 className="h-4 w-4" />
               <AlertTitle>Approved</AlertTitle>
               <AlertDescription>
-                This request item has been approved.
+                This request item has been approved and is awaiting license
+                assignment.
               </AlertDescription>
             </Alert>
           )}
-
+          {item.status === "ASSIGNING" && (
+            <Alert className="border-yellow-200 bg-yellow-50 text-yellow-700">
+              <Clock className="h-4 w-4" />
+              <AlertTitle>Assigning</AlertTitle>
+              <AlertDescription>
+                The license key is currently being assigned. Please wait a
+                moment.
+              </AlertDescription>
+            </Alert>
+          )}
+          {item.status === "REVIEWING" && (
+            <Alert className="border-yellow-200 bg-yellow-50 text-yellow-700">
+              <Clock className="h-4 w-4" />
+              <AlertTitle>Reviewing</AlertTitle>
+              <AlertDescription>
+                The request is currently being reviewed by other approvers.
+              </AlertDescription>
+            </Alert>
+          )}
+          {item.status === "FULFILLED" && (
+            <Alert className="border-green-300 bg-green-50 text-green-700">
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertTitle>Fulfilled</AlertTitle>
+              <AlertDescription>
+                This request item has been successfully fulfilled. The license
+                key has been assigned.
+              </AlertDescription>
+            </Alert>
+          )}
           {item.status === "DENIED" && (
             <Alert className="border-red-200 bg-red-50 text-red-700">
               <XCircle className="h-4 w-4" />
@@ -159,12 +240,20 @@ export function RequestItemCard({ item, request, currentUser, mutate }) {
               </AlertDescription>
             </Alert>
           )}
-
           {item.status === "PENDING" && (
             <Alert className="border-gray-200 bg-gray-50 text-gray-700">
               <Clock className="h-4 w-4" />
               <AlertTitle>Pending</AlertTitle>
               <AlertDescription>Waiting for approval...</AlertDescription>
+            </Alert>
+          )}
+          {item.status === "PURCHASING" && (
+            <Alert className="border-gray-200 bg-gray-50 text-gray-700">
+              <Clock className="h-4 w-4" />
+              <AlertTitle>Purchasing</AlertTitle>
+              <AlertDescription>
+                This request is under review and awaiting purchase approval.
+              </AlertDescription>
             </Alert>
           )}
         </div>

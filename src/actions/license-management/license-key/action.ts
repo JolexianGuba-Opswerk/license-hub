@@ -15,7 +15,7 @@ export async function addLicenseKeyAction(licenseId: string, key: string) {
       error: "Unauthorized: You do not have permission to perform this action",
     };
 
-  const response = await addLicenseKey(licenseId, key, isPermitted.data);
+  const response = await addLicenseKey(licenseId, key, isPermitted.data.id);
   if (response.error)
     return {
       error: response.error || "Something went wrong in creating license key",

@@ -82,18 +82,28 @@ export async function GET(request: NextRequest) {
       }),
       prisma.license.count({ where }),
     ]);
-
-    const unassignedLicenseKeyCounts = await prisma.licenseKey.groupBy({
-      by: ["licenseId"],
-      where: { NOT: { status: "ASSIGNED" } },
+    const keyCounts = await prisma.licenseKey.groupBy({
+      by: ["licenseId", "status"],
       _count: { licenseId: true },
     });
 
-    const licensesWithCounts = licenses.map((lic) => {
-      const unassigned =
-        unassignedLicenseKeyCounts.find((u) => u.licenseId === lic.id)?._count
-          .licenseId ?? 0;
-      return { ...lic, unassignedKeysCount: unassigned };
+    // --- Build license response including assigned/unassigned counts ---
+    const licensesWithCounts = licenses.map((license) => {
+      const assignedCount =
+        keyCounts.find(
+          (k) => k.licenseId === license.id && k.status === "ASSIGNED"
+        )?._count.licenseId ?? 0;
+
+      const unassignedCount =
+        keyCounts.find(
+          (k) => k.licenseId === license.id && k.status === "ACTIVE"
+        )?._count.licenseId ?? 0;
+
+      return {
+        ...license,
+        assignedKeysCount: assignedCount,
+        unassignedKeysCount: unassignedCount,
+      };
     });
 
     const totalPages = Math.ceil(totalCount / pageSize);

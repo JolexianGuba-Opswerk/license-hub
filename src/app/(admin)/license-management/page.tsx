@@ -123,8 +123,8 @@ export default function LicenseManagementTable() {
         ((license._count?.licenseKeys ?? 0) / license.totalSeats) * 100 || 0;
     } else {
       usagePercentage =
-        ((license.unassignedKeysCount ?? 0) / license._count?.licenseKeys) *
-        100;
+        ((license.assignedKeysCount ?? 0) / license._count?.licenseKeys) *
+          100 || 0;
     }
 
     let color = "bg-green-500";
@@ -268,7 +268,7 @@ export default function LicenseManagementTable() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        {license.unassignedKeysCount || 0} /
+                        {license.assignedKeysCount || 0} /
                         {license._count.licenseKeys}
                         {(() => {
                           const { usagePercentage, color } = licensePercentage(

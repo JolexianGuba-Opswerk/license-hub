@@ -25,40 +25,54 @@ export function DeclineDialog({
   const [isOpen, setIsOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [processing, setProcessing] = useState(false);
-
+  console.log("initial render", item.approvals);
   const handleDecline = async () => {
     if (!reason) return;
-    setProcessing(true);
 
+    setProcessing(true);
+    setIsSaving(true);
+    console.log("onclick render", item.approvals);
+    console.log("2onclick render", currentUser.id);
     const myApproval = item.approvals.find(
       (a: RequestItemApproval) => a.approverId === currentUser?.id
     );
-    if (!myApproval) return;
 
-    // TODO: Implement decline logic API
-    const response = await processRequestItemAction({
-      requestItemId: item.id,
-      approvalId: myApproval.id,
-      reason: reason,
-      decision: "DENIED",
-    }).finally(() => setIsSaving(false));
-
-    if (response.error) {
-      toast.error(response.error || "Something went wrong");
-    } else {
-      toast.success("Request item declined successfully");
-      mutate();
+    if (!myApproval) {
+      toast.error("You are not authorized to decline this item");
+      setProcessing(false);
+      setIsSaving(false);
+      return;
     }
-    setProcessing(false);
-    setIsOpen(false);
+
+    try {
+      const response = await processRequestItemAction({
+        requestItemId: item.id,
+        approvalId: myApproval.id,
+        reason,
+        decision: "DENIED",
+      });
+
+      if (response.success) {
+        toast.success("Request item declined successfully");
+        mutate();
+        setIsOpen(false); // Close the dialog
+      } else {
+        toast.error(response.error || "Something went wrong");
+      }
+    } catch (err) {
+      toast.error("Failed to decline request item");
+      console.error(err);
+    } finally {
+      setProcessing(false);
+      setIsSaving(false);
+    }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button
-          variant="outline"
-          className="flex-1"
+          className="flex-1 w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
           disabled={isSaving || processing}
         >
           <XCircle className="h-4 w-4 mr-2" />

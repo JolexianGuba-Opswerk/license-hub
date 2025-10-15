@@ -1,7 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { LicenseKeyStatus } from "@prisma/client";
-import logger from "next-logger";
 
 export async function addLicenseKey(
   licenseId: string,
@@ -10,7 +9,6 @@ export async function addLicenseKey(
 ) {
   try {
     // Check & Guard section
-
     const isExist = await prisma.licenseKey.findFirst({
       where: {
         licenseId: licenseId,

@@ -23,7 +23,6 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -34,13 +33,13 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import useSWR, { mutate as globalMutate } from "swr";
-
 import { fetcher } from "@/lib/fetcher";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
-import { License, LicenseKey } from "@/lib/schemas/license-management/license";
+import { IconTrash } from "@tabler/icons-react";
+import { License } from "@/lib/schemas/license-management/license";
 import { LicenseKeyStatus } from "@prisma/client";
 import { addLicenseKeyAction } from "@/actions/license-management/license-key/action";
 import { TableSkeleton } from "@/components/TableSkeleton";
+import { formatDateTime } from "@/lib/utils/formatDateTime";
 
 interface ManageLicenseKeysDrawerProps {
   children: React.ReactNode;
@@ -57,143 +56,102 @@ export function ManageLicenseKeysDrawer({
   const [newKey, setNewKey] = React.useState("");
   const [isAdding, setIsAdding] = React.useState(false);
 
-  const {
-    data: licenseData,
-    mutate,
-    isLoading,
-  } = useSWR<License>(
+  const { data, mutate, isLoading, error } = useSWR(
     `/api/license-management/manage-keys/${license.id}`,
     fetcher
   );
 
-  const currentLicense = license;
-  const keys = licenseData?.licenseKeys || [];
+  const keys = data?.licenseKeys ?? [];
 
   const addKey = async () => {
-    setIsAdding(true);
-    if (!newKey.trim()) {
-      toast.error("Please enter a license key");
-      return;
-    }
+    if (!newKey.trim()) return toast.error("Please enter a license key");
 
-    const response = await addLicenseKeyAction(license.id, newKey).finally(() =>
-      setIsAdding(false)
-    );
-    mutate();
-    globalMutate(tableSWRKey);
-    if (response.error) {
-      toast.error(response.error);
-    } else if (response.success) {
+    setIsAdding(true);
+    try {
+      const response = await addLicenseKeyAction(license.id, newKey);
+      if (response.error) throw new Error(response.error);
       toast.success("License key added successfully");
       setNewKey("");
+      mutate();
+      globalMutate(tableSWRKey);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add license key");
+    } finally {
+      setIsAdding(false);
     }
   };
 
   const removeKey = async (keyId: string) => {
-    mutate((prev: License | undefined) => {
-      if (!prev) return prev; // handle empty state
-      return {
-        ...prev,
-        licenseKeys: prev.licenseKeys.filter((k: LicenseKey) => k.id !== keyId),
-      };
-    }, false);
-
-    // TODO: DELETE API call
-
-    mutate();
-
+    // TODO: call DELETE API
+    mutate(
+      (prev) =>
+        prev
+          ? {
+              ...prev,
+              licenseKeys: prev.licenseKeys.filter((k) => k.id !== keyId),
+            }
+          : prev,
+      false
+    );
     toast.success("License key removed");
   };
 
   const updateStatus = async (keyId: string, status: LicenseKeyStatus) => {
-    mutate((prev: License | undefined) => {
-      if (!prev) return prev; // handle empty cache
-      return {
-        ...prev,
-        licenseKeys: prev.licenseKeys.map((k: LicenseKey) =>
-          k.id === keyId ? { ...k, status } : k
-        ),
-      };
-    }, false);
-
-    // TODO: API call
-
-    mutate();
-    toast.success(`Status updated to ${status}`);
-  };
-
-  const getStatusBadge = (status: string) => {
-    const variants = {
-      ACTIVE: "default",
-      INACTIVE: "secondary",
-      ASSIGNED: "outline",
-      REVOKED: "destructive",
-    } as const;
-
-    return (
-      <Badge variant={variants[status as keyof typeof variants] || "secondary"}>
-        {status}
-      </Badge>
+    // TODO: call PATCH API
+    mutate(
+      (prev) =>
+        prev
+          ? {
+              ...prev,
+              licenseKeys: prev.licenseKeys.map((k) =>
+                k.id === keyId ? { ...k, status } : k
+              ),
+            }
+          : prev,
+      false
     );
+    toast.success(`Status updated to ${status}`);
   };
 
   return (
     <Drawer direction={isMobile ? "bottom" : "bottom"}>
       <DrawerTrigger asChild>{children}</DrawerTrigger>
 
-      <DrawerContent className="  px-50 ">
-        <DrawerHeader>
+      <DrawerContent className="p-0 max-h-[85vh] flex flex-col">
+        <DrawerHeader className="pb-2 border-b">
           <DrawerTitle>
             {license.type === "KEY_BASED"
               ? "Manage License Keys"
               : "Manage License Seats"}
           </DrawerTitle>
           <DrawerDescription>
-            {currentLicense.name} - {license._count.licenseKeys}/
-            {license.totalSeats} seats available
+            {license.name} — {data?._count?.licenseKeys ?? 0}/
+            {license.totalSeats} in use
           </DrawerDescription>
         </DrawerHeader>
 
-        <div className="flex flex-col gap-4 px-4 py-2 overflow-y-auto">
-          {/* Add New Key Section */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          {/* Add Key Section */}
           {license.type === "KEY_BASED" && (
-            <div className="space-y-4 p-4 border rounded-lg">
-              <div className="space-y-2">
-                <Label htmlFor="newKey">Add New License Key</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="newKey"
-                    value={newKey}
-                    onChange={(e) => setNewKey(e.target.value)}
-                    placeholder="Enter license key..."
-                    disabled={
-                      license.totalSeats - license._count.licenseKeys <= 0
-                    }
-                  />
-                  <Button
-                    onClick={addKey}
-                    disabled={
-                      license.totalSeats - license._count.licenseKeys <= 0 ||
-                      !newKey.trim() ||
-                      isAdding
-                    }
-                  >
-                    {isAdding ? "Adding..." : <IconPlus className="h-4 w-4" />}
-                  </Button>
-                </div>
+            <div className="p-4 border rounded-lg bg-muted/30">
+              <Label>Add New License Key</Label>
+              <div className="flex gap-2 mt-2">
+                <Input
+                  placeholder="Enter license key..."
+                  value={newKey}
+                  onChange={(e) => setNewKey(e.target.value)}
+                  disabled={isAdding}
+                />
+                <Button onClick={addKey} disabled={isAdding || !newKey.trim()}>
+                  {isAdding ? "Adding..." : "Add"}
+                </Button>
               </div>
             </div>
           )}
 
           {/* Keys List */}
-          <Label>
-            {" "}
-            {license.type === "KEY_BASED" ? "License Keys" : "License Seats"} (
-            {keys.length})
-          </Label>
-          <div className="space-y- border rounded-lg max-h-70 overflow-y-auto">
-            {" "}
-            <div className="border rounded-lg">
+          <div className="border rounded-lg overflow-hidden">
+            <div className="max-h-[300px] overflow-y-auto rounded-md border">
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>
@@ -202,33 +160,38 @@ export function ManageLicenseKeysDrawer({
                     <TableHead>Date Added</TableHead>
                     <TableHead>Added By</TableHead>
                     <TableHead>Assigned To</TableHead>
-                    <TableHead className="w-32">Actions</TableHead>
+                    <TableHead className="w-24 text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     <TableSkeleton />
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
+                        className="text-center text-destructive"
+                      >
+                        Failed to load license keys
+                      </TableCell>
+                    </TableRow>
                   ) : keys.length > 0 ? (
-                    keys.map((licenseKey: LicenseKey) => (
-                      <TableRow key={licenseKey.id}>
+                    keys.map((k) => (
+                      <TableRow key={k.id}>
                         {license.type === "KEY_BASED" && (
-                          <TableCell className="font-mono text-sm">
-                            {licenseKey.key}
+                          <TableCell className="font-mono text-xs">
+                            {k.key}
                           </TableCell>
                         )}
-
                         <TableCell>
                           <Select
-                            value={licenseKey.status}
+                            value={k.status}
                             onValueChange={(val) =>
-                              updateStatus(
-                                licenseKey.id,
-                                val as LicenseKeyStatus
-                              )
+                              updateStatus(k.id, val as LicenseKeyStatus)
                             }
                           >
                             <SelectTrigger className="w-[120px]">
-                              <SelectValue placeholder="Select status" />
+                              <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="ACTIVE">Active</SelectItem>
@@ -238,27 +201,25 @@ export function ManageLicenseKeysDrawer({
                             </SelectContent>
                           </Select>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {new Date(licenseKey.createdAt).toLocaleDateString()}
+                        <TableCell className="text-muted-foreground">
+                          {formatDateTime(k.createdAt)}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {licenseKey.addedBy
-                            ? `${licenseKey.addedBy.name} - ${licenseKey.addedBy.department}`
+                        <TableCell className="text-muted-foreground">
+                          {k.addedBy
+                            ? `${k.addedBy.name} (${k.addedBy.department})`
                             : "—"}
                         </TableCell>
-                        <TableCell>
-                          {licenseKey.assignedTo ? (
-                            <span>{licenseKey.assignedTo.name}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
+                        <TableCell className="text-muted-foreground">
+                          {k.assignedUser?.name
+                            ? `${k.assignedUser?.name} (${k.assignedUser?.department})`
+                            : "—"}
                         </TableCell>
-                        <TableCell className="flex gap-2">
+                        <TableCell className="text-center">
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => removeKey(licenseKey.id)}
-                            disabled={licenseKey.status === "ASSIGNED"}
+                            onClick={() => removeKey(k.id)}
+                            disabled={k.status === "ASSIGNED"}
                           >
                             <IconTrash className="h-4 w-4" />
                           </Button>
@@ -269,11 +230,11 @@ export function ManageLicenseKeysDrawer({
                     <TableRow>
                       <TableCell
                         colSpan={6}
-                        className="h-24 text-center text-muted-foreground"
+                        className="text-center text-muted-foreground py-6"
                       >
                         {license.type === "KEY_BASED"
-                          ? " No license keys added yet."
-                          : "No seats assigned yet"}
+                          ? "No license keys added yet."
+                          : "No seats assigned yet."}
                       </TableCell>
                     </TableRow>
                   )}
@@ -282,9 +243,12 @@ export function ManageLicenseKeysDrawer({
             </div>
           </div>
         </div>
-        <DrawerFooter className="px-4 pb-4">
+
+        <DrawerFooter className="border-t p-4">
           <DrawerClose asChild>
-            <Button variant="outline">Close</Button>
+            <Button variant="outline" className="w-full sm:w-auto">
+              Close
+            </Button>
           </DrawerClose>
         </DrawerFooter>
       </DrawerContent>

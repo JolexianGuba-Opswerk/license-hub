@@ -37,7 +37,10 @@ export async function GET(request: Request) {
           {
             items: {
               some: {
-                license: { owner: department },
+                OR: [
+                  { license: { owner: department } },
+                  { approvals: { some: { approverId: userId } } },
+                ],
               },
             },
           },

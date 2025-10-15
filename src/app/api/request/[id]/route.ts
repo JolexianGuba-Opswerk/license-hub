@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/supabase-server";
 
-export async function GET({ params }: { params: { id: string } }) {
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    const [supabase, requestId] = [await createClient(), params.id];
+    const supabase = await createClient();
+    const { id } = await params;
 
-    // 🚀 Run auth in parallel-friendly form
     const { data, error: authError } = await supabase.auth.getUser();
     const user = data?.user;
 
@@ -20,7 +23,7 @@ export async function GET({ params }: { params: { id: string } }) {
 
     // ONLY SELECTING NEEDED FIELDS FOR VALIDATION CHECK
     const requestMeta = await prisma.licenseRequest.findUnique({
-      where: { id: requestId },
+      where: { id },
       select: {
         id: true,
         requestor: { select: { id: true, department: true } },
@@ -76,7 +79,7 @@ export async function GET({ params }: { params: { id: string } }) {
 
     // LOADING UP FULL DETAILS SECTION
     const licenseRequest = await prisma.licenseRequest.findUnique({
-      where: { id: requestId },
+      where: { id: requestMeta.id },
       include: {
         requestor: {
           select: {
@@ -112,16 +115,13 @@ export async function GET({ params }: { params: { id: string } }) {
                 expiryDate: true,
                 status: true,
                 type: true,
-
                 licenseKeys: {
                   where: { status: "ACTIVE" },
                   select: { id: true, status: true },
                 },
               },
             },
-            assignments: {
-              include: { licenseKey: true },
-            },
+            assignments: { include: { licenseKey: true } },
             approvals: {
               include: {
                 approver: {
@@ -146,23 +146,56 @@ export async function GET({ params }: { params: { id: string } }) {
     }
 
     const updatedItems = licenseRequest.items.map((item) => {
+      let needsPurchase = false;
       let canTakeAction = false;
       let isDoneApproving = false;
-
+      const licenseStatus = item.status;
+      let declineReason = "";
       for (const approval of item.approvals) {
         if (approval.status === "APPROVED" && approval.approver.id === userId) {
           isDoneApproving = true;
         }
+
+        if (
+          (approval.status === "DENIED" || approval.status === "ASSIGNING") &&
+          approval.reason
+        ) {
+          declineReason = approval.reason;
+        }
+
         if (
           !isDoneApproving &&
-          approval.approver.id === userId &&
-          approval.status === "PENDING"
+          approval.status === "PENDING" &&
+          userId === approval.approverId &&
+          licenseStatus !== "DENIED"
         ) {
           canTakeAction = true;
         }
       }
+      // CHECKING IF ITEM NEEDS PURCHASE BASED ON TYPE
+      if (item?.license?.type === "SEAT_BASED") {
+        const totalSeats = item.license.totalSeats || 0;
+        const assignedCount = item.assignments.filter(
+          (a) => a.status === "ACTIVE"
+        ).length;
+        const availableCount = totalSeats - assignedCount;
+        needsPurchase = availableCount <= 0 && totalSeats > 0;
+      } else {
+        const totalSeats = item.license?.totalSeats || 0;
+        const activeKeys = item.license?.licenseKeys.filter(
+          (k) => k.status === "ACTIVE"
+        ).length;
+        const availableCount = activeKeys || 0;
+        needsPurchase = availableCount <= 0 && totalSeats > 0;
+      }
 
-      return { ...item, canTakeAction, isDoneApproving };
+      return {
+        ...item,
+        canTakeAction,
+        isDoneApproving,
+        declineReason,
+        needsPurchase,
+      };
     });
 
     const responsePayload = { ...licenseRequest, items: updatedItems };

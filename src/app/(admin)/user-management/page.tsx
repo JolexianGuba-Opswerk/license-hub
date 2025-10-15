@@ -44,6 +44,7 @@ import { GetUserResponse, userRoles } from "@/lib/types/user";
 import { Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 import useDebounce from "@/lib/utils/useDebounce";
+import { deleteUserAction } from "@/actions/user-management/action";
 
 export default function UserManagementTable() {
   const router = useRouter();
@@ -70,6 +71,13 @@ export default function UserManagementTable() {
     router.replace(params.toString() ? `?${params.toString()}` : "");
   };
 
+  const handleDelete = async (userId: string) => {
+    const response = await deleteUserAction(userId);
+    if (response.error) {
+      toast.error(response.error || "Something went wrong in deleting user");
+    }
+    toast.success("User deleted successfully");
+  };
   // handle search changes (debounced)
   React.useEffect(() => {
     updateParams({
@@ -204,10 +212,9 @@ export default function UserManagementTable() {
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-red-600 "
-                            onSelect={() => {
-                              toast.message(
-                                "This feature will be available soon"
-                              );
+                            onSelect={async (e) => {
+                              e.preventDefault();
+                              await handleDelete(user.id);
                             }}
                           >
                             <Trash2Icon className="h-4 w-4 mr-2" />
