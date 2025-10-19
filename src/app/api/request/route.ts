@@ -102,7 +102,7 @@ export async function GET(request: Request) {
       department: r.requestedFor?.department || r.requestor.department,
       totalItems: r.items.length,
       status: r.status,
-      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
       items: r.items.map((i) => ({
         type: i.type,
         name:

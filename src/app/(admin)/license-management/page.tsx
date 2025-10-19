@@ -51,6 +51,7 @@ import {
 import { LicenseStatus, LicenseType } from "@prisma/client";
 import { Trash2Icon } from "lucide-react";
 import useDebounce from "@/lib/utils/useDebounce";
+import ForbiddenAccessPage from "@/components/ForbiddenAccessPage";
 
 export default function LicenseManagementTable() {
   const router = useRouter();
@@ -84,9 +85,13 @@ export default function LicenseManagementTable() {
   }, [debouncedValue]);
 
   const swrKey = `/api/license-management?page=${page}&search=${search}&vendor=${vendor}&status=${status}&type=${type}`;
-  const { data, isLoading, mutate } = useSWR<LicenseResponse>(swrKey, fetcher, {
+  const { data, isLoading, mutate } = useSWR(swrKey, fetcher, {
     revalidateOnFocus: true,
   });
+
+  if (data?.error === "Unauthorized") {
+    return <ForbiddenAccessPage />;
+  }
 
   const totalPages = data?.meta?.totalPages || 1;
   const total = data?.meta?.total;
@@ -122,9 +127,14 @@ export default function LicenseManagementTable() {
       usagePercentage =
         ((license._count?.licenseKeys ?? 0) / license.totalSeats) * 100 || 0;
     } else {
-      usagePercentage =
-        ((license.assignedKeysCount ?? 0) / license._count?.licenseKeys) *
-          100 || 0;
+      if (license.type === "KEY_BASED") {
+        usagePercentage =
+          ((license.assignedKeysCount ?? 0) / license._count?.licenseKeys) *
+            100 || 0;
+      } else {
+        usagePercentage =
+          ((license._count?.licenseKeys ?? 0) / license.totalSeats) * 100 || 0;
+      }
     }
 
     let color = "bg-green-500";
@@ -228,8 +238,8 @@ export default function LicenseManagementTable() {
             <TableBody>
               {!data || isLoading ? (
                 <TableSkeleton rows={5} cols={8} />
-              ) : data?.data.length ? (
-                data.data.map((license) => (
+              ) : data?.data?.length ? (
+                data?.data?.map((license) => (
                   <TableRow key={license.id} className="hover:bg-muted/50">
                     <TableCell
                       className="cursor-pointer"
@@ -268,8 +278,12 @@ export default function LicenseManagementTable() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        {license.assignedKeysCount || 0} /
-                        {license._count.licenseKeys}
+                        {license.type === "KEY_BASED"
+                          ? `${license.assignedKeysCount || 0} /
+                        ${license._count.licenseKeys}`
+                          : `${license._count.licenseKeys || 0} /
+                        ${license.totalSeats}`}
+
                         {(() => {
                           const { usagePercentage, color } = licensePercentage(
                             license,

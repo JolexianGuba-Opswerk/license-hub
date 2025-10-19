@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/supabase-server";
 
 // TODO: ADD PERMISSION FUNCTION IN HERE..
 export async function GET(request: NextRequest) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" });
+    }
+    const allowedRoles = ["TEAM_LEAD", "MANAGER", "ADMIN"];
+    const role = user.user_metadata.role;
+    const department = user.user_metadata.department;
+
+    if (department !== "ITSG" && !allowedRoles.includes(role)) {
+      return NextResponse.json({ error: "Unauthorized" });
+    }
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const search = searchParams.get("search") || "";
@@ -30,6 +46,10 @@ export async function GET(request: NextRequest) {
 
     if (type && type !== "ALL") {
       where.type = type;
+    }
+
+    if (department !== "ITSG") {
+      where.owner = department;
     }
 
     // Status filtering logic

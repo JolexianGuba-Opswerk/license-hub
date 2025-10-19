@@ -10,6 +10,9 @@ import {
   CalendarClock,
   FileKey,
   Info,
+  ShoppingCart,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,11 +46,27 @@ const typeConfig: Record<string, { icon: any; color: string; bg: string }> = {
     color: "text-purple-600",
     bg: "bg-purple-50",
   },
+  PROCUREMENT_CREATED: {
+    icon: ShoppingCart,
+    color: "text-orange-600",
+    bg: "bg-orange-50",
+  },
   PROCUREMENT_REQUEST: {
     icon: ClipboardList,
     color: "text-orange-600",
     bg: "bg-orange-50",
   },
+  PROCUREMENT_APPROVED: {
+    icon: CheckCircle,
+    color: "text-green-600",
+    bg: "bg-green-50",
+  },
+  PROCUREMENT_REJECTED: {
+    icon: XCircle,
+    color: "text-red-600",
+    bg: "bg-red-50",
+  },
+
   USER_ADDED: {
     icon: UserPlus,
     color: "text-indigo-600",

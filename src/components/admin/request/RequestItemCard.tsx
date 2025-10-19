@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
-import { Package, Clock } from "lucide-react";
+import { Package, Clock, UserCheck } from "lucide-react";
 import { processRequestItemAction } from "@/actions/request/action";
 import { toast } from "sonner";
 import { AddApproverDialog } from "./AddApproverDialog";
@@ -53,7 +53,7 @@ export function RequestItemCard({ item, request, currentUser, mutate }) {
       setProcessingItem(null);
     }
   };
-
+  console.log(item);
   return (
     <div className="p-4 sm:p-6 border rounded-xl shadow-sm hover:shadow-md transition-shadow bg-white w-full flex flex-col gap-4">
       {/* Header */}
@@ -126,37 +126,44 @@ export function RequestItemCard({ item, request, currentUser, mutate }) {
       <Separator className=" sm:my-4" />
 
       {/* ACTIONS SECTION */}
-      {item.canTakeAction && item.status === "PENDING" ? (
-        <div>
-          {item.needsPurchase && (
-            <div className="pb-2">
-              <Alert className="border border-yellow-300 bg-yellow-50 text-yellow-800 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center space-x-2">
-                  <ShoppingCart className="h-5 w-5 text-yellow-600" />
-                  <div>
-                    <AlertTitle className="font-semibold">
-                      Needs Purchase
-                    </AlertTitle>
-                    <AlertDescription className="text-sm">
-                      No available seats or license keys. Please request a
-                      purchase first
-                    </AlertDescription>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3 sm:mt-0 border-yellow-400 text-yellow-700 hover:bg-yellow-100"
-                  onClick={() => {
-                    router.push(`/procurement/new/?requestItemId=${item.id}`);
-                  }}
-                >
-                  Purchase
-                </Button>
-              </Alert>
+      {item.needsPurchase && item.canPurchase && (
+        <div className="pb-2">
+          <Alert className="border border-yellow-300 bg-yellow-50 text-yellow-800 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center space-x-2">
+              <ShoppingCart className="h-5 w-5 text-yellow-600" />
+              <div>
+                <AlertTitle className="font-semibold">
+                  Needs Purchase
+                </AlertTitle>
+                <AlertDescription className="text-sm">
+                  No available seats or license keys. Please request a purchase
+                  first
+                </AlertDescription>
+              </div>
             </div>
-          )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3 sm:mt-0 border-yellow-400 text-yellow-700 hover:bg-yellow-100"
+              onClick={() => {
+                const queryParams = new URLSearchParams({
+                  requestItemId: item.id,
+                  vendor: item?.license?.vendor || item?.requestedLicenseVendor,
+                  name: item.license?.name || item?.requestedLicenseName,
+                  justification: item.justification,
+                  // Add other fields you want to prefill
+                }).toString();
+                router.push(`/procurement/new/?${queryParams}`);
+              }}
+            >
+              Purchase
+            </Button>
+          </Alert>
+        </div>
+      )}
 
+      {item.canTakeAction ? (
+        <div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 pt-2">
             {/* DECLINE BUTTON */}
             {item && (
@@ -220,14 +227,32 @@ export function RequestItemCard({ item, request, currentUser, mutate }) {
             </Alert>
           )}
           {item.status === "FULFILLED" && (
-            <Alert className="border-green-300 bg-green-50 text-green-700">
-              <CheckCircle2 className="h-4 w-4" />
-              <AlertTitle>Fulfilled</AlertTitle>
-              <AlertDescription>
-                This request item has been successfully fulfilled. The license
-                key has been assigned.
-              </AlertDescription>
-            </Alert>
+            <div>
+              {item.assignedBy && (
+                <Alert className="flex items-center gap-3 px-3 py-2 mb-4 rounded-lg border border-blue-200 bg-blue-50 text-blue-800">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-md bg-blue-100">
+                    <UserCheck className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="flex flex-col leading-tight">
+                    <AlertTitle className="font-semibold text-sm">
+                      Assigned By
+                    </AlertTitle>
+                    <AlertDescription className="text-xs">
+                      {item.assignedBy}
+                    </AlertDescription>
+                  </div>
+                </Alert>
+              )}
+
+              <Alert className="border-green-300 bg-green-50 text-green-700">
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertTitle>Fulfilled</AlertTitle>
+                <AlertDescription>
+                  This request item has been successfully fulfilled. The license
+                  key has been assigned.
+                </AlertDescription>
+              </Alert>
+            </div>
           )}
           {item.status === "DENIED" && (
             <Alert className="border-red-200 bg-red-50 text-red-700">

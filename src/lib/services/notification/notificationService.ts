@@ -1,4 +1,4 @@
-import { PrismaClient, NotificationType, Prisma } from "@prisma/client";
+import { NotificationType, Prisma } from "@prisma/client";
 import { notificationTemplates } from "./notificationTemplate";
 import { prisma } from "@/lib/prisma";
 

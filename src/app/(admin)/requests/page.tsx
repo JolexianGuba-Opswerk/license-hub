@@ -93,30 +93,6 @@ export default function RequestsPage() {
       return matchesSearch && matchesStatus && matchesTab;
     }) || [];
 
-  // Stats
-  // const stats = [
-  //   {
-  //     label: "Total Requests",
-  //     value: requests?.length || 0,
-  //     color: "text-blue-600",
-  //   },
-  //   {
-  //     label: "Pending",
-  //     value: requests?.filter((r) => r.status === "PENDING").length || 0,
-  //     color: "text-yellow-600",
-  //   },
-  //   {
-  //     label: "Approved",
-  //     value: requests?.filter((r) => r.status === "APPROVED").length || 0,
-  //     color: "text-green-600",
-  //   },
-  //   {
-  //     label: "Denied",
-  //     value: requests?.filter((r) => r.status === "DENIED").length || 0,
-  //     color: "text-red-600",
-  //   },
-  // ];
-
   return (
     <div className="container mx-auto py-6 p-5 space-y-6 p-10">
       {/* Header */}
@@ -267,10 +243,10 @@ export default function RequestsPage() {
                           </TableCell>
                           <TableCell className="py-2">
                             <div className="text-sm">
-                              {new Date(request.createdAt).toLocaleDateString()}
+                              {new Date(request.updatedAt).toLocaleDateString()}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {new Date(request.createdAt).toLocaleTimeString()}
+                              {new Date(request.updatedAt).toLocaleTimeString()}
                             </div>
                           </TableCell>
                           <TableCell className="py-2">

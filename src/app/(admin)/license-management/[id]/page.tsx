@@ -438,7 +438,9 @@ export default function LicenseDetailsPage() {
                     },
                     {
                       label: "Added By",
-                      value: license.licenseAddedBy.name,
+                      value: license.licenseAddedBy?.name
+                        ? `Added by ${license.licenseAddedBy.name}`
+                        : "Automatically created by the system",
                       className: "text-sm",
                     },
                   ]}

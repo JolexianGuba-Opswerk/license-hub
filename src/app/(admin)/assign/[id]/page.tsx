@@ -6,13 +6,14 @@ import useSWR from "swr";
 import { createClient } from "@/lib/supabase/supabase-client";
 import { fetcher } from "@/lib/fetcher";
 import { motion } from "framer-motion";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { AssignmentItemCard } from "@/components/admin/license-assignment/AssignmentItemCard";
 import { RequestDetailsSkeleton } from "@/components/admin/request/RequestDetailsSkeleton";
 import { formatDateTime } from "@/lib/utils/formatDateTime";
+import ForbiddenAccessPage from "@/components/ForbiddenAccessPage";
 
 export default function AssignmentDetailsPage() {
   const params = useParams();
@@ -41,8 +42,19 @@ export default function AssignmentDetailsPage() {
 
   if (isLoading) return <RequestDetailsSkeleton />;
 
-  if (!assignment)
-    return <p className="p-6 text-center">Assignment Not Found</p>;
+  if (
+    assignment?.error === "Forbidden" ||
+    assignment?.error === "Unauthorized"
+  ) {
+    return (
+      <ForbiddenAccessPage
+        title="Access Restricted"
+        message="    You don’t have the required permissions to access this page. If you
+          believe this is a mistake, please contact your administrator."
+        showBackButton={true}
+      />
+    );
+  }
 
   return (
     <div className="container mx-auto w-full p-10 space-y-8">

@@ -20,6 +20,7 @@ import {
   AlertCircle,
   Settings,
   Sparkle,
+  UserCheck,
 } from "lucide-react";
 
 import {
@@ -180,6 +181,7 @@ export function AssignmentItemCard({ item, mutate }) {
         </Alert>
       );
     }
+
     if (!item.canAction)
       return (
         <Alert className="border-yellow-300 bg-yellow-50 text-yellow-800 flex flex-col gap-2">
@@ -214,11 +216,83 @@ export function AssignmentItemCard({ item, mutate }) {
         </Alert>
       );
 
-    if (isAlreadyAssigned)
+    if (item.status === "DENIED")
       return (
-        <Alert className="border-blue-200 bg-blue-50 text-blue-700">
-          <CheckCircle className="h-4 w-4" />
-          <AlertTitle>Already Assigned</AlertTitle>
+        <Alert className="border-red-300 bg-red-50 text-red-800 flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            <AlertTitle>Request Denied</AlertTitle>
+          </div>
+          <AlertDescription>
+            This request item has been denied and cannot be assigned. Please
+            review the denial reason or contact the requestor for more
+            information.
+          </AlertDescription>
+        </Alert>
+      );
+
+    if (item.status === "FULFILLED" || isAlreadyAssigned)
+      return (
+        <div>
+          {item.assignedBy && (
+            <Alert className="flex items-center gap-3 px-3 py-2 mb-4 rounded-lg border border-blue-200 bg-blue-50 text-blue-800">
+              <div className="flex items-center justify-center w-8 h-8 rounded-md bg-blue-100">
+                <UserCheck className="w-4 h-4 text-blue-600" />
+              </div>
+              <div className="flex flex-col leading-tight">
+                <AlertTitle className="font-semibold text-sm">
+                  Assigned By
+                </AlertTitle>
+                <AlertDescription className="text-xs">
+                  {item.assignedBy}
+                </AlertDescription>
+              </div>
+            </Alert>
+          )}
+          <Alert className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 text-emerald-800 p-3 shadow-sm">
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100">
+              <CheckCircle className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div className="flex flex-col leading-tight">
+              <AlertTitle className="font-semibold text-sm">
+                Already Assigned
+              </AlertTitle>
+              <AlertDescription className="text-xs">
+                The license is already assigned. Waiting for user confirmation.
+              </AlertDescription>
+            </div>
+          </Alert>
+        </div>
+      );
+
+    if (!item.canAction)
+      return (
+        <Alert className="border-yellow-300 bg-yellow-50 text-yellow-800 flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            <AlertTitle>Action Restricted</AlertTitle>
+          </div>
+        </Alert>
+      );
+
+    if (item.needsConfiguration && !isAlreadyAssigned)
+      return (
+        <Alert className="border-yellow-300 bg-yellow-50 text-yellow-800 flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            <AlertTitle>Configuration Required</AlertTitle>
+          </div>
+          <AlertDescription>
+            This license needs configuration before assigning.
+          </AlertDescription>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => router.push(`/license-management/${item.licenseId}`)}
+            className="self-start mt-1"
+          >
+            Configure Seat
+          </Button>
         </Alert>
       );
 
@@ -268,10 +342,36 @@ export function AssignmentItemCard({ item, mutate }) {
 
     if (item.status === "FULFILLED" || isAlreadyAssigned)
       return (
-        <Alert className="border-blue-200 bg-blue-50 text-blue-700">
-          <CheckCircle className="h-4 w-4" />
-          <AlertTitle>Already Assigned</AlertTitle>
-        </Alert>
+        <div>
+          {item.assignedBy && (
+            <Alert className="flex items-center gap-3 px-3 py-2 mb-4 rounded-lg border border-blue-200 bg-blue-50 text-blue-800">
+              <div className="flex items-center justify-center w-8 h-8 rounded-md bg-blue-100">
+                <UserCheck className="w-4 h-4 text-blue-600" />
+              </div>
+              <div className="flex flex-col leading-tight">
+                <AlertTitle className="font-semibold text-sm">
+                  Assigned By
+                </AlertTitle>
+                <AlertDescription className="text-xs">
+                  {item.assignedBy}
+                </AlertDescription>
+              </div>
+            </Alert>
+          )}
+          <Alert className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 text-emerald-800 p-3 shadow-sm">
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100">
+              <CheckCircle className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div className="flex flex-col leading-tight">
+              <AlertTitle className="font-semibold text-sm">
+                Already Assigned
+              </AlertTitle>
+              <AlertDescription className="text-xs">
+                The license is already assigned. Waiting for user confirmation.
+              </AlertDescription>
+            </div>
+          </Alert>
+        </div>
       );
 
     if (!item.canAction)
@@ -324,13 +424,6 @@ export function AssignmentItemCard({ item, mutate }) {
             </SelectContent>
           </Select>
 
-          {/* <Button
-            className="w-full sm:w-auto"
-            onClick={() => handleAssignKey(false)}
-            disabled={isAssigning || !selectedKey}
-          >
-            Assign
-          </Button> */}
           <Button
             variant="secondary"
             className="w-full sm:w-auto flex items-center gap-2 justify-center"

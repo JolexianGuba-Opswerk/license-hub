@@ -45,6 +45,7 @@ import { Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 import useDebounce from "@/lib/utils/useDebounce";
 import { deleteUserAction } from "@/actions/user-management/action";
+import ForbiddenAccessPage from "@/components/ForbiddenAccessPage";
 
 export default function UserManagementTable() {
   const router = useRouter();
@@ -52,8 +53,8 @@ export default function UserManagementTable() {
 
   const page = Number(searchParams.get("page") || 1);
   const search = searchParams.get("search") || "";
-  const role = searchParams.get("role") || "ALL";
-  const department = searchParams.get("department") || "ALL";
+  const role = searchParams.get("role") || "";
+  const department = searchParams.get("department") || "";
 
   // local state for input
   const [searchValue, setSearchValue] = React.useState(search);
@@ -87,9 +88,13 @@ export default function UserManagementTable() {
   }, [debouncedSearch]);
 
   const swrKey = `/api/user-management?page=${page}&search=${search}&role=${role}&department=${department}`;
-  const { data, isLoading, mutate } = useSWR<GetUserResponse>(swrKey, fetcher, {
+  const { data, isLoading, mutate } = useSWR(swrKey, fetcher, {
     dedupingInterval: 1000 * 60 * 5,
   });
+
+  if (data?.error === "Unauthorized") {
+    return <ForbiddenAccessPage />;
+  }
 
   return (
     <Tabs defaultValue="users" className="w-full flex-col gap-6">
@@ -122,6 +127,7 @@ export default function UserManagementTable() {
               <SelectItem value="SRE">SRE</SelectItem>
               <SelectItem value="HR">HR</SelectItem>
               <SelectItem value="SSED">SSED</SelectItem>
+              <SelectItem value="FINANCE">FINANCE</SelectItem>
             </SelectContent>
           </Select>
 
@@ -139,8 +145,6 @@ export default function UserManagementTable() {
               <SelectItem value="MANAGER">Manager</SelectItem>
               <SelectItem value="ADMIN">Admin</SelectItem>
               <SelectItem value="ACCOUNT_OWNER">Account Owner</SelectItem>
-              <SelectItem value="TEAM_LEAD">Team Lead</SelectItem>
-              <SelectItem value="FINANCE">Finance</SelectItem>
             </SelectContent>
           </Select>
         </div>

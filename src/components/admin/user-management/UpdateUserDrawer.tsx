@@ -179,6 +179,7 @@ export function UpdateUserDrawer({
                   <SelectItem value="SRE">SRE</SelectItem>
                   <SelectItem value="HR">HR</SelectItem>
                   <SelectItem value="SSED">SSED</SelectItem>
+                  <SelectItem value="FINANCE">FINANCE</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -202,7 +203,7 @@ export function UpdateUserDrawer({
                   <SelectItem value="MANAGER">Manager</SelectItem>
                   <SelectItem value="ADMIN">Admin</SelectItem>
                   <SelectItem value="ACCOUNT_OWNER">Account Owner</SelectItem>
-                  <SelectItem value="FINANCE">Finance</SelectItem>
+
                   <SelectItem value="TEAM_LEAD">Team Lead</SelectItem>
                 </SelectContent>
               </Select>

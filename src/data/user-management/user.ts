@@ -9,6 +9,7 @@ import { NotificationType } from "@prisma/client";
 
 // Create user in database and Supabase Auth
 export async function createUser(userData: UserType, currentUser: string) {
+  let createdAuthUserId: string | null = null;
   // IF MANAGER IS NOT ACCOUNT OWNER AND MANAGER
   const roleWithoutManager = ["MANAGER", "ACCOUNT_OWNER"];
   try {
@@ -68,66 +69,87 @@ export async function createUser(userData: UserType, currentUser: string) {
     }
 
     // ACTUAL DATABASE USER CREATION WITH TRANSACTION WRAP
-    const supabaseUserId = user.user.id;
-    const result = await prisma.$transaction(async (tx) => {
-      const newUser = await tx.userDetails.create({
-        data: {
-          id: supabaseUserId,
-          name: userData.name,
-          email: userData.email,
-          role: userData.role,
-          department: userData.department,
-          position: userData.position,
-          addedById: currentUser,
-          managerId: userData.managerId === "none" ? null : userData.managerId,
-        },
-      });
-
-      // Notify each department's Admin (ADMIN, ACCOUNT_OWNERS, MANAGER)
-      const departmentAdmins = await tx.userDetails.findMany({
-        where: {
-          department: userData.department,
-          role: {
-            in: ["ADMIN", "ACCOUNT_OWNER", "MANAGER"],
+    createdAuthUserId = user.user.id;
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const newUser = await tx.userDetails.create({
+          data: {
+            id: createdAuthUserId!,
+            name: userData.name,
+            email: userData.email,
+            role: userData.role,
+            department: userData.department,
+            position: userData.position,
+            addedById: currentUser,
+            managerId:
+              userData.managerId === "none" ? null : userData.managerId,
           },
-        },
-      });
+        });
 
-      await Promise.all(
-        departmentAdmins.map((admin) =>
-          sendNotification(
-            {
-              userId: admin.id,
-              type: NotificationType.USER_ADDED,
-              payload: {
-                userName: newUser.name,
-                department: newUser.department,
-              },
-              url: `/user-management/${newUser.id}`,
+        // Notify each department's Admin (ADMIN, ACCOUNT_OWNERS, MANAGER)
+        const departmentAdmins = await tx.userDetails.findMany({
+          where: {
+            department: userData.department,
+            role: {
+              in: ["ADMIN", "ACCOUNT_OWNER", "MANAGER"],
             },
-            tx
-          )
-        )
-      );
-
-      // Notification for employee side
-      await sendNotification(
-        {
-          userId: newUser.id,
-          type: NotificationType.USER_ADDED,
-          payload: {
-            forUser: true,
-            department: newUser.department,
           },
-          url: `/`,
-        },
-        tx
-      );
-    });
+        });
 
-    return { data: result };
+        await Promise.all(
+          departmentAdmins.map((admin) =>
+            sendNotification(
+              {
+                userId: admin.id,
+                type: NotificationType.USER_ADDED,
+                payload: {
+                  userName: newUser.name,
+                  department: newUser.department,
+                },
+                url: `/user-management/${newUser.id}`,
+              },
+              tx
+            )
+          )
+        );
+
+        // Notification for employee side
+        await sendNotification(
+          {
+            userId: newUser.id,
+            type: NotificationType.USER_ADDED,
+            payload: {
+              forUser: true,
+              department: newUser.department,
+            },
+            url: `/`,
+          },
+          tx
+        );
+      });
+      return { data: result };
+    } catch (transactionError) {
+      // If transaction fails, delete the auth user
+      console.warn("Transaction failed, deleting auth user:", transactionError);
+      if (createdAuthUserId) {
+        try {
+          await supabaseAdmin.auth.admin.deleteUser(createdAuthUserId);
+        } catch (deleteError) {
+          console.error("Failed to delete auth user:", deleteError);
+        }
+      }
+      return { error: "Failed to create user in database" };
+    }
   } catch (error) {
-    console.log(error);
+    console.warn(error);
+    if (createdAuthUserId) {
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(createdAuthUserId);
+        return { error: "Something went wrong in creating" };
+      } catch (error) {
+        return { error: error || "Something went wrong in creating" };
+      }
+    }
     return { error: "Something went wrong in creating" };
   }
 }

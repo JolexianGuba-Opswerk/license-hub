@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { AddApproverInput } from "@/lib/schemas/request/request";
 import { sendNotification } from "@/lib/services/notification/notificationService";
 import { NotificationType } from "@prisma/client";
+import { logAuditEvent } from "../audit/action";
 
 interface SubmitRequestInput {
   requestItems;
@@ -114,7 +115,12 @@ export async function processRequestItemAction({
       // Validate ownership
       const approval = await tx.requestItemApproval.findUnique({
         where: { id: approvalId },
-        select: { approverId: true, status: true, requestItemId: true },
+        select: {
+          requestItem: { select: { requestId: true } },
+          approverId: true,
+          status: true,
+          requestItemId: true,
+        },
       });
 
       if (!approval || approval.approverId !== user.id) {
@@ -125,13 +131,36 @@ export async function processRequestItemAction({
       }
 
       //  Update the approval
-      await tx.requestItemApproval.update({
+      const itemApproval = await tx.requestItemApproval.update({
         where: { id: approvalId },
         data: {
           status: decision,
           reason: reason ?? null,
           approvedAt: new Date(),
         },
+        include: {
+          approver: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+
+      await logAuditEvent({
+        userId: user.id,
+        action: decision === "APPROVED" ? "APPROVED" : "DENIED",
+        entity: "LicenseRequest",
+        entityId: approval.requestItem.requestId,
+        description: `${itemApproval.approver.name} ${
+          decision === "APPROVED" ? "approved" : "rejected"
+        } a license request item . ${reason ? `Reason: ${reason}` : ""}`,
+        changes: {
+          status: decision,
+          reason: reason ?? null,
+          approvedAt: new Date(),
+        },
+        tx: tx,
       });
 
       // Update the request item status
@@ -165,11 +194,13 @@ export async function processRequestItemAction({
       let parentStatus: "ASSIGNING" | "DENIED" | "REVIEWING" | "PENDING";
 
       if (statuses.some((s) => s === "DENIED")) {
-        parentStatus = "ASSIGNING";
+        parentStatus = "DENIED";
       } else if (statuses.every((s) => s === "APPROVED")) {
         parentStatus = "ASSIGNING";
       } else if (statuses.every((s) => s === "PENDING")) {
         parentStatus = "PENDING";
+      } else if (statuses.every((s) => s === "DENIED")) {
+        parentStatus = "DENIED";
       } else {
         parentStatus = "REVIEWING";
       }
@@ -186,6 +217,19 @@ export async function processRequestItemAction({
         await tx.licenseRequest.update({
           where: { id: updatedItem.requestId },
           data: { status: parentStatus },
+        });
+
+        await logAuditEvent({
+          action: decision === "DENIED" ? "DENIED" : "UPDATED",
+          entity: "LicenseRequest",
+          entityId: approval.requestItem.requestId,
+          description: `The status of a license request was updated to "${itemStatus}".
+         This change reflects the latest approval decisions from all assigned approvers.`,
+          changes: {
+            status: itemStatus,
+            reason: reason ?? null,
+          },
+          tx: tx,
         });
 
         const usersToNotify = [parentRequest.requestorId];
@@ -239,10 +283,11 @@ export async function processRequestItemAction({
     });
 
     return result;
-  } catch (err: any) {
+  } catch (err) {
+    console.warn(err);
     return {
       success: false,
-      error: err.message ?? "Failed to process request item.",
+      error: "Failed to process request item.",
     };
   }
 }
@@ -286,6 +331,38 @@ export async function addApproverToRequestItem(
         level: data.level,
         status: "PENDING",
       },
+      include: {
+        requestItem: { include: { license: true } },
+        approver: true,
+      },
+    });
+
+    const licenseName =
+      approval.requestItem?.license?.name ||
+      approval.requestItem.requestedLicenseName;
+
+    const vendor =
+      approval.requestItem?.license?.vendor ||
+      approval.requestItem.requestedLicenseVendor;
+
+    await sendNotification({
+      userId: data.approverId,
+      type: NotificationType.LICENSE_REQUESTED,
+      payload: {
+        licenseName: licenseName,
+        vendor: vendor,
+        status: "CREATED",
+        newApprover: true,
+      },
+      url: `/requests/${approval.requestItem.requestId}`,
+    });
+
+    // Log the change in the audit trail
+    await logAuditEvent({
+      action: "UPDATED",
+      entity: "LicenseRequest",
+      entityId: approval.requestItem.requestId,
+      description: `${approval.approver.name} has been assigned as an approver at the "${data.level}" level. The request is now awaiting their approval.`,
     });
 
     return { data: approval, error: "" };
