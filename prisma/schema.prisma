@@ -34,6 +34,7 @@ model UserDetails {
   procurementRequestsMade     ProcurementRequest[]    @relation("ProcurementRequestedBy")
   procurementRequestsApproved ProcurementRequest[]    @relation("ProcurementApprovedBy")
   ProcurementAttachment       ProcurementAttachment[]
+  AuditLog                    AuditLog[]
 }
 
 model License {
@@ -155,6 +156,7 @@ model ProcurementRequest {
   requestedById String  @db.Uuid
   approvedById  String? @db.Uuid
 
+  itemName         String?
   itemDescription  String
   justification    String
   vendor           String
@@ -176,13 +178,14 @@ model ProcurementRequest {
   updatedAt DateTime @updatedAt
 
   // RELATIONS
-  license     License?     @relation(fields: [licenseId], references: [id])
-  requestItem RequestItem? @relation(fields: [requestItemId], references: [id])
-  requestedBy UserDetails  @relation("ProcurementRequestedBy", fields: [requestedById], references: [id])
-  approvedBy  UserDetails? @relation("ProcurementApprovedBy", fields: [approvedById], references: [id])
-
+  license           License?                @relation(fields: [licenseId], references: [id])
+  requestItem       RequestItem?            @relation(fields: [requestItemId], references: [id])
+  requestedBy       UserDetails             @relation("ProcurementRequestedBy", fields: [requestedById], references: [id])
+  approvedBy        UserDetails?            @relation("ProcurementApprovedBy", fields: [approvedById], references: [id])
+  approvedcreatedAt DateTime?               @default(now())
+  approvedupdatedAt DateTime?               @updatedAt
   // ATTACHMENTS
-  attachments ProcurementAttachment[]
+  attachments       ProcurementAttachment[]
 }
 
 enum ProcurementStatus {
@@ -199,6 +202,7 @@ enum PurchaseStage {
   ORDERED
   PURCHASED
   CLOSED
+  COMPLETED
 }
 
 model ProcurementAttachment {
@@ -232,6 +236,37 @@ model Notification {
   user      UserDetails      @relation(fields: [userId], references: [id])
 }
 
+model AuditLog {
+  id     String       @id @default(dbgenerated("gen_random_uuid()"))
+  userId String?      @db.Uuid
+  user   UserDetails? @relation(fields: [userId], references: [id])
+
+  entity   String
+  entityId String?
+
+  action      AuditAction
+  description String
+  changes     Json?
+
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+}
+
+enum AuditAction {
+  CREATED
+  COMPLETED
+  UPDATED
+  APPROVED
+  DENIED
+  DELETED
+  REVOKED
+  LOGIN
+  LOGOUT
+  ASSIGNED
+  UPLOADED
+}
+
 enum RequestItemType {
   EMAIL
   LICENSE
@@ -249,7 +284,9 @@ enum NotificationType {
   LICENSE_ASSIGNED
   LICENSE_EXPIRED
   LICENSE_REQUESTED
-  PROCUREMENT_REQUEST
+  PROCUREMENT_CREATED
+  PROCUREMENT_APPROVED
+  PROCUREMENT_REJECTED
   USER_ADDED
   GENERAL
 }
@@ -268,6 +305,7 @@ enum Department {
   SRE
   HR
   SSED
+  FINANCE
 }
 
 enum RequestStatus {

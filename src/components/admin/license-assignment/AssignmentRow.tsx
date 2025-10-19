@@ -99,7 +99,11 @@ export default function AssignmentRow({
             <div
               className="bg-green-500 h-2 rounded-full"
               style={{
-                width: `${assignment.analytics.progressPercent}%`,
+                width: `${
+                  (assignment.analytics.assignedCount /
+                    assignment.analytics.readyToAssignCount) *
+                  100
+                }%`,
               }}
             />
           </div>

@@ -14,30 +14,28 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Calendar } from "@/components/ui/calendar";
-import { CalendarDays, PinIcon } from "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { format } from "date-fns";
+
+import { PinIcon } from "lucide-react";
+
 import { useSearchParams } from "next/navigation";
 import { createProcurementAction } from "@/actions/procurement/action";
+import { createClient } from "@/lib/supabase/supabase-client";
+import ForbiddenAccessPage from "@/components/ForbiddenAccessPage";
 
 export default function NewProcurementRequest() {
   const searchParams = useSearchParams();
   const requestItemId = searchParams.get("requestItemId");
-
+  const requestItemName = searchParams.get("name");
+  const requestedVendor = searchParams.get("vendor");
+  const justification = searchParams.get("justification");
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [form, setForm] = useState({
-    name: "",
-    vendor: "",
-    justification: "",
+    name: requestItemName,
+    vendor: requestedVendor,
     vendorEmail: "",
     price: "",
     quantity: 1,
     currency: "PHP",
-    expectedDelivery: undefined as Date | undefined,
     cc: "ITSG",
     notes: "",
     itemDescription: "",
@@ -48,32 +46,55 @@ export default function NewProcurementRequest() {
 
   // Auto calculate total cost
   useEffect(() => {
+    const checkUser = async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      // Check if user is authorized
+      if (
+        !user ||
+        !["MANAGER", "TEAM_LEAD"].includes(user.user_metadata.role) ||
+        !["ITSG", "FINANCE"].includes(user.user_metadata.department)
+      ) {
+        setAuthorized(false);
+      } else {
+        setAuthorized(true);
+      }
+    };
+
+    checkUser();
+
     const cost = Number(form.price || 0) * Number(form.quantity || 1);
     setTotalCost(cost);
   }, [form.price, form.quantity]);
 
+  if (!authorized && authorized !== null) {
+    return <ForbiddenAccessPage />;
+  }
+
   const handleSubmit = async () => {
-    if (!form.name || !form.justification || !form.vendor) {
+    if (!isFormValid) {
       toast.error("Please fill all required fields marked with *");
       return;
     }
     setIsLoading(true);
     try {
       const res = await createProcurementAction(form);
-      if (!res.success)
+      if (!res.success) {
         return toast.error(res.error || "Something went wrong in saving");
+      }
       toast.success("Procurement request submitted successfully!");
 
       // Reset form after successful submission
       setForm({
         name: "",
         vendor: "",
-        justification: "",
         vendorEmail: "",
         price: "",
         quantity: 1,
         currency: "PHP",
-        expectedDelivery: undefined,
         cc: "ITSG",
         notes: "",
         itemDescription: "",
@@ -88,7 +109,8 @@ export default function NewProcurementRequest() {
     }
   };
 
-  const isFormValid = form.name && form.justification && form.vendor;
+  const isFormValid =
+    form.name && form.itemDescription && form.price && form.vendor;
 
   return (
     <div className="container mx-auto py-8 grid grid-cols-1 lg:grid-cols-3 gap-8 p-4 lg:p-10">
@@ -137,7 +159,7 @@ export default function NewProcurementRequest() {
                   </Label>
                   <Input
                     id="itemName"
-                    value={form.name}
+                    value={form.name as string}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     placeholder="e.g., Adobe Photoshop, Microsoft Office"
                     className="w-full"
@@ -165,34 +187,56 @@ export default function NewProcurementRequest() {
               </div>
               <div className="space-y-2">
                 <Label
-                  htmlFor="justification"
+                  htmlFor="description"
                   className="text-sm font-medium text-gray-700"
                 >
                   Item Description *
                 </Label>
-                <Textarea
+                <Input
                   id="justification"
                   value={form.itemDescription}
                   onChange={(e) =>
                     setForm({ ...form, itemDescription: e.target.value })
                   }
                   placeholder="Please provide item description."
-                  className="min-h-[80px] resize-vertical"
+                  className=""
                 />
               </div>
+
               <div className="space-y-3">
                 <Label
                   htmlFor="justification"
+                  className="text-sm font-medium text-gray-700 flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <PinIcon className="h-4 w-4 text-amber-500" />
+                    License Request Justification *
+                  </span>
+                  <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">
+                    license request
+                  </span>
+                </Label>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 shadow-sm">
+                  <Textarea
+                    id="justification"
+                    value={justification as string}
+                    disabled={true}
+                    placeholder="Explain why this procurement is needed, including business case and benefits..."
+                    className="min-h-[80px] resize-vertical bg-white border-amber-300"
+                  />
+                </div>
+              </div>
+              <div className="space-y-3">
+                <Label
+                  htmlFor="notes"
                   className="text-sm font-medium text-gray-700"
                 >
-                  Justification *
+                  Additional Notes *
                 </Label>
                 <Textarea
-                  id="justification"
-                  value={form.justification}
-                  onChange={(e) =>
-                    setForm({ ...form, justification: e.target.value })
-                  }
+                  id="notes"
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   placeholder="Explain why this procurement is needed, including business case and benefits..."
                   className="min-h-[100px] resize-vertical"
                 />
@@ -217,7 +261,7 @@ export default function NewProcurementRequest() {
                   </Label>
                   <Input
                     id="vendor"
-                    value={form.vendor}
+                    value={form.vendor as string}
                     onChange={(e) =>
                       setForm({ ...form, vendor: e.target.value })
                     }
@@ -313,7 +357,7 @@ export default function NewProcurementRequest() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-3">
+                <div className="space-y-3 w-full">
                   <Label
                     htmlFor="department"
                     className="text-sm font-medium text-gray-700"
@@ -324,7 +368,7 @@ export default function NewProcurementRequest() {
                     value={form.cc}
                     onValueChange={(v) => setForm({ ...form, cc: v })}
                   >
-                    <SelectTrigger id="department">
+                    <SelectTrigger id="department" className="w-full">
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
@@ -335,40 +379,6 @@ export default function NewProcurementRequest() {
                       <SelectItem value="SSED">SSED</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-
-                <div className="space-y-3">
-                  <Label
-                    htmlFor="deliveryDate"
-                    className="text-sm font-medium text-gray-700"
-                  >
-                    Expected Delivery Date
-                  </Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        id="deliveryDate"
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal h-10"
-                      >
-                        <CalendarDays className="mr-2 h-4 w-4" />
-                        {form.expectedDelivery
-                          ? format(form.expectedDelivery, "PPP")
-                          : "Select date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={form.expectedDelivery}
-                        onSelect={(date) =>
-                          setForm({ ...form, expectedDelivery: date })
-                        }
-                        initialFocus
-                        disabled={(date) => date < new Date()}
-                      />
-                    </PopoverContent>
-                  </Popover>
                 </div>
               </div>
             </section>
@@ -449,6 +459,20 @@ export default function NewProcurementRequest() {
                 <div className="flex items-center gap-2">
                   <div
                     className={`w-2 h-2 rounded-full ${
+                      form.itemDescription ? "bg-green-500" : "bg-gray-300"
+                    }`}
+                  ></div>
+                  <span
+                    className={`text-sm ${
+                      form.itemDescription ? "text-gray-700" : "text-gray-500"
+                    }`}
+                  >
+                    Item Description {form.itemDescription ? "✓" : ""}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-2 h-2 rounded-full ${
                       form.vendor ? "bg-green-500" : "bg-gray-300"
                     }`}
                   ></div>
@@ -463,15 +487,15 @@ export default function NewProcurementRequest() {
                 <div className="flex items-center gap-2">
                   <div
                     className={`w-2 h-2 rounded-full ${
-                      form.justification ? "bg-green-500" : "bg-gray-300"
+                      form.price ? "bg-green-500" : "bg-gray-300"
                     }`}
                   ></div>
                   <span
                     className={`text-sm ${
-                      form.justification ? "text-gray-700" : "text-gray-500"
+                      form.price ? "text-gray-700" : "text-gray-500"
                     }`}
                   >
-                    Justification {form.justification ? "✓" : ""}
+                    Price {form.price ? "✓" : ""}
                   </span>
                 </div>
               </div>

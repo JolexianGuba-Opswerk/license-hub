@@ -9,6 +9,8 @@ import { RequestDetailsSkeleton } from "@/components/admin/request/RequestDetail
 import { RequestHeader } from "@/components/admin/request/RequestHeader";
 import { RequestInfo } from "@/components/admin/request/RequestInfo";
 import dynamic from "next/dynamic";
+import ForbiddenAccessPage from "@/components/ForbiddenAccessPage";
+import NotFoundPage from "@/components/NotFoundPage";
 
 const RequestItemCard = dynamic(
   () =>
@@ -45,7 +47,10 @@ export default function RequestDetailsPage() {
 
   if (isLoading) return <RequestDetailsSkeleton />;
 
-  if (!request) return <p className="p-6 text-center">Request Not Found</p>;
+  if (request?.error === "Unauthorized" || request?.error === "Forbidden") {
+    return <ForbiddenAccessPage />;
+  }
+  if (!request) return <NotFoundPage />;
 
   const targetUser = request.requestedFor || request.requestor;
 

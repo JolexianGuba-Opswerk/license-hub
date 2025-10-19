@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getUsers } from "@/data/user-management/user";
+import { createClient } from "@/lib/supabase/supabase-server";
 
 const querySchema = z.object({
   page: z.string().optional(),
@@ -12,6 +13,21 @@ const querySchema = z.object({
 
 export async function GET(req: Request) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" });
+    }
+
+    const department = user.user_metadata.department;
+
+    if (department !== "ITSG") {
+      return NextResponse.json({ error: "Unauthorized" });
+    }
+
     const { searchParams } = new URL(req.url);
     const parsed = querySchema.parse(Object.fromEntries(searchParams));
 

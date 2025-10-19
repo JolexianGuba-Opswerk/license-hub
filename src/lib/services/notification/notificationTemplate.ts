@@ -25,6 +25,7 @@ export const notificationTemplates: Record<NotificationType, TemplateFn> = {
   }),
   LICENSE_REQUESTED: (payload) => {
     const isForAdmin = payload?.forAdmin === true;
+    const newApprover = payload?.newApprover === true;
 
     // Map status to friendly messages
     const statusMessages: Record<string, string> = {
@@ -34,10 +35,21 @@ export const notificationTemplates: Record<NotificationType, TemplateFn> = {
       }`,
       REVIEWING: "is under review by approvers",
       APPROVED: "has been approved",
-      CREATED: "has been created", // friendly message for newly created requests
+      CREATED: "has been created",
     };
 
     const actionMessage = statusMessages[payload.status] ?? "was updated";
+
+    if (newApprover) {
+      return {
+        title: `You’ve been added as an approver for license request ${payload.licenseName}`,
+        message: `${payload?.requestorName ?? "A user"} requested **${
+          payload?.licenseName ?? "a license"
+        }** from ${
+          payload?.vendor ?? "an unknown vendor"
+        }. Your approval is now required.`,
+      };
+    }
 
     if (isForAdmin) {
       return {
@@ -57,12 +69,34 @@ export const notificationTemplates: Record<NotificationType, TemplateFn> = {
       }** (${payload?.vendor ?? "Unknown Vendor"}) ${actionMessage}.`,
     };
   },
+  PROCUREMENT_CREATED: (payload) => ({
+    title: "Procurement Request Created",
+    message: payload.isOwner
+      ? `You successfully submitted a new procurement request for ${
+          payload?.item ?? "an item"
+        }.`
+      : `${
+          payload?.requesterName ?? "A user"
+        } submitted a new procurement request for ${
+          payload?.item ?? "an item"
+        }.`,
+  }),
 
-  PROCUREMENT_REQUEST: (payload) => ({
-    title: "Procurement Request",
-    message: `${
-      payload?.requesterName ?? "A user"
-    } submitted a procurement request for ${payload?.item ?? "an item"}.`,
+  PROCUREMENT_APPROVED: (payload) => ({
+    title: "Procurement Request Approved",
+    message: `Your procurement request for **${
+      payload?.item ?? "an item"
+    }** has been approved by **${payload?.approverName ?? "an approver"}**. 
+Please upload the required proof of purchase at your earliest convenience to complete the process.`,
+  }),
+
+  PROCUREMENT_REJECTED: (payload) => ({
+    title: "Procurement Request Rejected",
+    message: `Procurement request for ${
+      payload?.item ?? "an item"
+    } was rejected by ${payload?.approverName ?? "an approver"}${
+      payload?.reason ? ` with the reason: "${payload.reason}".` : "."
+    }`,
   }),
   USER_ADDED: (payload) => {
     if (payload?.forUser) {

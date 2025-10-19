@@ -18,7 +18,7 @@ export const createUserSchema = z.object({
     "FINANCE",
     "TEAM_LEAD",
   ]),
-  department: z.enum(["ITSG", "SRE", "HR", "SSED"]),
+  department: z.enum(["ITSG", "SRE", "HR", "SSED", "FINANCE"]),
   position: z.string().max(100, "Position is too long").nullable(),
   managerId: z
     .union([z.literal("none"), z.string().uuid()])
@@ -41,7 +41,7 @@ export const updateUserSchema = z.object({
     "FINANCE",
     "TEAM_LEAD",
   ]),
-  department: z.enum(["ITSG", "SRE", "HR", "SSED"]),
+  department: z.enum(["ITSG", "SRE", "HR", "SSED", "FINANCE"]),
   position: z.string().max(100, "Position is too long").nullable(),
   managerId: z
     .union([z.literal("none"), z.string().uuid()])

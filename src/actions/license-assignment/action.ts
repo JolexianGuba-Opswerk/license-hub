@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendNotification } from "@/lib/services/notification/notificationService";
 import { createClient } from "@/lib/supabase/supabase-server";
 import { NotificationType } from "@prisma/client";
+import { logAuditEvent } from "../audit/action";
 
 async function checkLicenseAccess(user, requestItemId: string) {
   const requestItem = await prisma.requestItem.findUnique({
@@ -138,7 +139,7 @@ export async function manualAssignLicenseKey({
         // CREATE LICENSE KEY RECORD for this seat
         const licenseKey = await tx.licenseKey.create({
           data: {
-            licenseId: requestItem.licenseId,
+            licenseId: requestItem.licenseId as string,
             seatLink,
             status: "ASSIGNED",
             addedById: user.id,
@@ -149,8 +150,13 @@ export async function manualAssignLicenseKey({
       }
 
       // CREATE ASSIGNMENT
-      await tx.licenseAssignment.create({
+      const assignment = await tx.licenseAssignment.create({
         data: assignmentData,
+        include: {
+          assigner: {
+            select: { name: true },
+          },
+        },
       });
 
       // UPDATE REQUEST ITEM STATUS
@@ -174,6 +180,14 @@ export async function manualAssignLicenseKey({
         select: { approverId: true },
       });
 
+      await logAuditEvent({
+        userId: user.id,
+        action: "ASSIGNED",
+        entity: "LicenseRequest",
+        entityId: requestItem.requestId,
+        description: `License "${licenseName}" was assigned by ${assignment.assigner?.name} to ${assigneeName}`,
+        tx: tx,
+      });
       const approverIds = licenseApprovers.map((a) => a.approverId);
 
       await Promise.allSettled([
@@ -339,6 +353,11 @@ export async function autoAssignLicenseKey({
           status: "ACTIVE",
           assignedAt: new Date(),
         },
+        include: {
+          assigner: {
+            select: { name: true },
+          },
+        },
       });
 
       // UPDATE LICENSE KEY & REQUEST ITEM
@@ -368,8 +387,16 @@ export async function autoAssignLicenseKey({
         select: { approverId: true },
       });
 
-      const approverIds = licenseApprovers.map((a) => a.approverId);
+      await logAuditEvent({
+        userId: user.id,
+        action: "ASSIGNED",
+        entity: "LicenseRequest",
+        entityId: requestItem.requestId,
+        description: `License "${licenseName}" was assigned by ${assignment.assigner?.name} to ${assigneeName}`,
+        tx: tx,
+      });
 
+      const approverIds = licenseApprovers.map((a) => a.approverId);
       await Promise.allSettled([
         // NOTIFY THE REQUESTOR
         sendNotification(
@@ -454,7 +481,13 @@ export async function licenseReceivalConfirmation(licenseAssignmentId: string) {
           requestItem: {
             include: {
               license: true,
-              request: { select: { id: true, requestorId: true } },
+              request: {
+                select: {
+                  id: true,
+                  requestorId: true,
+                  requestor: { select: { name: true } },
+                },
+              },
             },
           },
         },
@@ -463,7 +496,7 @@ export async function licenseReceivalConfirmation(licenseAssignmentId: string) {
       if (!assignment) {
         return { success: false, error: "License assignment not found" };
       }
-
+      const assignedTo = assignment.requestItem.request.requestor.name;
       // OWNERSHIP CHECK
       if (assignment.userId !== user.id) {
         return {
@@ -482,11 +515,13 @@ export async function licenseReceivalConfirmation(licenseAssignmentId: string) {
       const remainingItems = await tx.requestItem.count({
         where: {
           requestId: assignment.requestItem.requestId,
-          NOT: { status: "FULFILLED" },
+          NOT: {
+            OR: [{ status: "FULFILLED" }, { status: "DENIED" }],
+          },
         },
       });
 
-      // UPDATE MAIN LICENSE REQUEST IF ALL ITEMS ARE FULFILLED
+      // UPDATE MAIN LICENSE REQUEST IF ALL ITEMS ARE FULFILLED OR DENIED
       if (remainingItems === 0) {
         await tx.licenseRequest.update({
           where: { id: assignment.requestItem.requestId },
@@ -516,7 +551,7 @@ export async function licenseReceivalConfirmation(licenseAssignmentId: string) {
                 requestId: assignment.requestItem.requestId,
                 licenseName:
                   assignment.requestItem.license?.name ?? "Unknown License",
-                message: `${user.user_metadata.name} confirmed receipt of the license.`,
+                message: `${assignedTo} confirmed receipt of the license.`,
               },
               url: `/requests/${assignment.requestItem.requestId}`,
             },
@@ -549,6 +584,27 @@ export async function licenseReceivalConfirmation(licenseAssignmentId: string) {
           );
         }
       }
+
+      await logAuditEvent({
+        userId: user.id,
+        action: "APPROVED",
+        entity: "LicenseRequest",
+        entityId: assignment.requestItem.requestId,
+        description: `${assignedTo} confirmed receipt of the license "${
+          assignment.requestItem.license?.name ?? "Unknown License"
+        }"`,
+        tx: tx,
+      });
+
+      await logAuditEvent({
+        action: "COMPLETED",
+        entity: "LicenseRequest",
+        entityId: assignment.requestItem.requestId,
+        description: `${assignedTo} has successfully received and fulfilled the license request for "${
+          assignment.requestItem.license?.name ?? "Unknown License"
+        }". All necessary actions have been completed.`,
+        tx: tx,
+      });
 
       return {
         success: true,

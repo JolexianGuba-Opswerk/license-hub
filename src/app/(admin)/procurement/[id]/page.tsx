@@ -1,29 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { startTransition, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import {
-  ArrowLeft,
-  Calendar,
-  Building,
-  Mail,
-  FileText,
-  Package,
-  User,
-  Clock,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
-} from "lucide-react";
-import { format } from "date-fns";
+import { ArrowLeft, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
 import { RequestDetailsSkeleton } from "@/components/admin/request/RequestDetailsSkeleton";
+import { ItemDetailsCard } from "@/components/admin/procurement/procurement-details/ItemDetailsCard";
+import { VendorFinancialCard } from "@/components/admin/procurement/procurement-details/VendorFinancialCard";
+import { AttachmentsCard } from "@/components/admin/procurement/procurement-details/AttachmentsCard";
+import { RequestInfoCard } from "@/components/admin/procurement/procurement-details/RequestInfoCard";
+import { RelatedItemsCard } from "@/components/admin/procurement/procurement-details/RelatedItemCards";
+import { ActionsCard } from "@/components/admin/procurement/procurement-details/ActionCard";
+import { ProofOfPurchaseCard } from "@/components/admin/procurement/procurement-details/ProofOfPurchasesCard";
+import { procurementDeclineApproveAction } from "@/actions/procurement/action";
+import ForbiddenAccessPage from "@/components/ForbiddenAccessPage";
 
 export default function ProcurementDetailsPage() {
   const params = useParams();
@@ -31,58 +24,57 @@ export default function ProcurementDetailsPage() {
   const procurementId = params.id as string;
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const { data: procurement, isLoading } = useSWR(
+  const { data, isLoading, mutate } = useSWR(
     procurementId ? `/api/procurement/${procurementId}` : null,
     fetcher
   );
 
-  console.log(procurement);
-  const updateStatus = async (newStatus: string) => {
-    setIsUpdating(true);
+  if (data?.error === "Forbidden" || data?.error === "Unauthorized") {
+    return <ForbiddenAccessPage />;
+  }
+  const procurement = data?.procurement;
+
+  const updateStatus = (newStatus: string, rejectionReason?: string) => {
+    startTransition(async () => {
+      setIsUpdating(true);
+      try {
+        const action = newStatus === "APPROVED" ? "APPROVED" : "REJECTED";
+
+        const res = await procurementDeclineApproveAction({
+          procurementId,
+          action,
+          remarks: rejectionReason,
+        });
+
+        if (res?.error || !res.success) {
+          toast.error(res.error);
+        } else {
+          toast.success(res.error || `Status updated to ${newStatus}`);
+          mutate(`/api/procurement/${procurementId}`);
+        }
+      } catch (error) {
+        console.error("Update failed:", error);
+        toast.error("Failed to update procurement status");
+      } finally {
+        setIsUpdating(false);
+      }
+    });
+  };
+
+  const handleDeleteFile = async (fileId: string) => {
     try {
-      const res = await fetch(`/api/procurement/${procurementId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+      const res = await fetch(`/api/procurement/upload/${fileId}`, {
+        method: "DELETE",
       });
 
-      if (!res.ok) throw new Error("Failed to update status");
+      if (!res.ok) throw new Error("Failed to delete file");
 
-      toast.success(`Status updated to ${newStatus}`);
+      toast.success("File deleted successfully");
+      mutate(); // Refresh data
     } catch (error) {
       console.error(error);
-      toast.error("Failed to update status");
-    } finally {
-      setIsUpdating(false);
+      toast.error("Failed to delete file");
     }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      PENDING: { variant: "secondary" as const, label: "Pending" },
-      APPROVED: { variant: "default" as const, label: "Approved" },
-      REJECTED: { variant: "destructive" as const, label: "Rejected" },
-      CANCELLED: { variant: "outline" as const, label: "Cancelled" },
-    };
-
-    const config =
-      statusConfig[status as keyof typeof statusConfig] || statusConfig.PENDING;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
-  };
-
-  const getPurchaseStatusBadge = (status: string) => {
-    const statusConfig = {
-      NOT_STARTED: { variant: "secondary" as const, label: "Not Started" },
-      ORDERED: { variant: "default" as const, label: "Ordered" },
-      DELIVERED: { variant: "default" as const, label: "Delivered" },
-      INSTALLED: { variant: "success" as const, label: "Installed" },
-      CANCELLED: { variant: "destructive" as const, label: "Cancelled" },
-    };
-
-    const config =
-      statusConfig[status as keyof typeof statusConfig] ||
-      statusConfig.NOT_STARTED;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
   if (isLoading) {
@@ -91,15 +83,15 @@ export default function ProcurementDetailsPage() {
 
   if (!procurement) {
     return (
-      <div className="container mx-auto py-8 text-center">
-        <AlertCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+      <div className="container mx-auto py-8 text-center space-y-4">
+        <AlertCircle className="h-16 w-16 text-gray-400 mx-auto" />
+        <h1 className="text-2xl font-bold text-gray-900">
           Procurement Not Found
         </h1>
-        <p className="text-gray-600 mb-4">
+        <p className="text-gray-600">
           The procurement request youre looking for doesnt exist.
         </p>
-        <Button onClick={() => router.push("/procurement")}>
+        <Button onClick={() => router.push("/procurement")} className="mt-4">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Procurement
         </Button>
@@ -108,9 +100,9 @@ export default function ProcurementDetailsPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6 p-10">
+    <div className="container mx-auto py-8 space-y-8 px-4 sm:px-6 lg:px-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button
             variant="outline"
@@ -119,363 +111,49 @@ export default function ProcurementDetailsPage() {
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+          <div className="space-y-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
               Procurement Request
             </h1>
-            <p className="text-gray-600">ID: {procurement.id}</p>
+            <p className="text-gray-600 text-sm">ID: {procurement.id}</p>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {getStatusBadge(procurement.status)}
-          {getPurchaseStatusBadge(procurement.purchaseStatus)}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Item Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Item Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">
-                    Item Description
-                  </label>
-                  <p className="text-gray-900 font-medium">
-                    {procurement.itemDescription}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">
-                    Quantity
-                  </label>
-                  <p className="text-gray-900 font-medium">
-                    {procurement.quantity}
-                  </p>
-                </div>
-              </div>
+        <div className="lg:col-span-2 space-y-8">
+          <ItemDetailsCard procurement={procurement} />
+          <VendorFinancialCard procurement={procurement} />
 
-              <div>
-                <label className="text-sm font-medium text-gray-500">
-                  Justification
-                </label>
-                <p className="text-gray-900 mt-1 whitespace-pre-wrap">
-                  {procurement.justification}
-                </p>
-              </div>
-
-              {procurement.notes && (
-                <div>
-                  <label className="text-sm font-medium text-gray-500">
-                    Additional Notes
-                  </label>
-                  <p className="text-gray-900 mt-1 whitespace-pre-wrap">
-                    {procurement.notes}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Vendor & Financial Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building className="h-5 w-5" />
-                Vendor & Financial Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">
-                    Vendor Name
-                  </label>
-                  <p className="text-gray-900 font-medium">
-                    {procurement.vendor}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">
-                    Vendor Email
-                  </label>
-                  <p className="text-gray-900 font-medium flex items-center gap-2">
-                    <Mail className="h-4 w-4" />
-                    {procurement.vendorEmail || "Not provided"}
-                  </p>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">
-                    Price per Unit
-                  </label>
-                  <p className="text-gray-900 font-medium flex items-center gap-2">
-                    {procurement.price
-                      ? `${
-                          procurement.currency
-                        } ${procurement.price.toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}`
-                      : "Not specified"}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">
-                    Quantity
-                  </label>
-                  <p className="text-gray-900 font-medium">
-                    {procurement.quantity}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">
-                    Total Cost
-                  </label>
-                  <p className="text-gray-900 font-medium flex items-center gap-2">
-                    {procurement.totalCost
-                      ? `${
-                          procurement.currency
-                        } ${procurement.totalCost.toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}`
-                      : "Not calculated"}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Attachments */}
-          {procurement.attachments?.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Attachments ({procurement.attachments?.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {procurement.attachments.map((attachment) => (
-                    <div
-                      key={attachment.id}
-                      className="flex items-center justify-between p-3 border rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-4 w-4 text-gray-400" />
-                        <div>
-                          <p className="font-medium text-sm">
-                            {attachment.fileName}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Uploaded{" "}
-                            {format(
-                              new Date(attachment.uploadedAt),
-                              "MMM dd, yyyy 'at' h:mm a"
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                      <Button variant="outline" size="sm" asChild>
-                        <a
-                          href={attachment.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Download
-                        </a>
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+          {data.canUploadProof && (
+            <div>
+              {/* Proof of Purchase Section */}
+              <ProofOfPurchaseCard
+                procurement={procurement}
+                onFileDelete={handleDeleteFile}
+                onRefresh={mutate}
+              />
+            </div>
           )}
+          {procurement.status === "APPROVED" &&
+            procurement.purchaseStatus === "PURCHASED" &&
+            !data.canUploadProof && (
+              <AttachmentsCard procurement={procurement} onRefresh={mutate} />
+            )}
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Request Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Request Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <User className="h-4 w-4 text-gray-400" />
-                  <div>
-                    <p className="text-sm font-medium">Requested By</p>
-                    <p className="text-sm text-gray-600">
-                      {procurement.requestedBy.firstName}{" "}
-                      {procurement.requestedBy.lastName}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {procurement.requestedBy.email}
-                    </p>
-                  </div>
-                </div>
+        <div className="space-y-8">
+          <RequestInfoCard procurement={procurement} />
+          <RelatedItemsCard procurement={procurement} />
 
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-4 w-4 text-gray-400" />
-                  <div>
-                    <p className="text-sm font-medium">Request Date</p>
-                    <p className="text-sm text-gray-600">
-                      {format(new Date(procurement.createdAt), "MMM dd, yyyy")}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {format(new Date(procurement.createdAt), "h:mm a")}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <Clock className="h-4 w-4 text-gray-400" />
-                  <div>
-                    <p className="text-sm font-medium">Last Updated</p>
-                    <p className="text-sm text-gray-600">
-                      {format(new Date(procurement.updatedAt), "MMM dd, yyyy")}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {format(new Date(procurement.updatedAt), "h:mm a")}
-                    </p>
-                  </div>
-                </div>
-
-                {procurement.expectedDelivery && (
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <div>
-                      <p className="text-sm font-medium">Expected Delivery</p>
-                      <p className="text-sm text-gray-600">
-                        {format(
-                          new Date(procurement.expectedDelivery),
-                          "MMM dd, yyyy"
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <Separator />
-
-              <div>
-                <p className="text-sm font-medium mb-2">Charge to Department</p>
-                <Badge variant="outline">{procurement.cc}</Badge>
-              </div>
-
-              {procurement.approvedBy && (
-                <>
-                  <Separator />
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <div>
-                      <p className="text-sm font-medium">Approved By</p>
-                      <p className="text-sm text-gray-600">
-                        {procurement.approvedBy.firstName}{" "}
-                        {procurement.approvedBy.lastName}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {procurement.approvedBy.email}
-                      </p>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {procurement.rejectionReason && (
-                <>
-                  <Separator />
-                  <div className="flex items-center gap-3">
-                    <XCircle className="h-4 w-4 text-red-500" />
-                    <div>
-                      <p className="text-sm font-medium">Rejection Reason</p>
-                      <p className="text-sm text-red-600">
-                        {procurement.rejectionReason}
-                      </p>
-                    </div>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Related Items */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Related Items</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {procurement.requestItem && (
-                <div className="p-3 border rounded-lg">
-                  <p className="text-sm font-medium">Linked License</p>
-                  <p className="text-sm text-gray-600">
-                    {procurement.requestItem.license.name}
-                  </p>
-                </div>
-              )}
-
-              {procurement.requestItem && (
-                <div className="p-3 border rounded-lg">
-                  <p className="text-sm font-medium">Linked Request Item</p>
-                  <p className="text-sm text-gray-600">
-                    {procurement.requestItem.title}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    ID: {procurement.requestItem.id}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Actions */}
-          {procurement.status === "PENDING" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button
-                  className="w-full"
-                  onClick={() => updateStatus("APPROVED")}
-                  disabled={isUpdating}
-                >
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Approve Request
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    const reason = prompt("Please enter rejection reason:");
-                    if (reason) {
-                      updateStatus("REJECTED");
-                      // You might want to send rejection reason in the update
-                    }
-                  }}
-                  disabled={isUpdating}
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Reject Request
-                </Button>
-              </CardContent>
-            </Card>
+          {data.canTakeAction && (
+            <ActionsCard
+              procurement={procurement}
+              isUpdating={isUpdating}
+              onUpdateStatus={updateStatus}
+            />
           )}
         </div>
       </div>

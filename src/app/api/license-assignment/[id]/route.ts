@@ -14,14 +14,13 @@ export async function GET(
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user) return NextResponse.json({ error: "Unauthorized" });
 
     const role = user.user_metadata.role;
     const department = user.user_metadata.department;
 
     const request = await prisma.licenseRequest.findUnique({
-      where: { id },
+      where: { id, status: { in: ["APPROVED", "ASSIGNING", "FULFILLED"] } },
       include: {
         requestor: true,
         items: {
@@ -32,14 +31,18 @@ export async function GET(
               },
             },
             approvals: { include: { approver: true } },
-            assignments: true,
+            assignments: {
+              include: {
+                licenseKey: true,
+                assigner: true,
+              },
+            },
           },
         },
       },
     });
 
-    if (!request)
-      return NextResponse.json({ error: "Not Found" }, { status: 404 });
+    if (!request) return NextResponse.json({ error: "Forbidden" });
 
     // Authorization check
     const isAuthorized =
@@ -50,8 +53,7 @@ export async function GET(
           ["MANAGER", "ADMIN", "TEAM_LEAD"].includes(role)
       );
 
-    if (!isAuthorized)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!isAuthorized) return NextResponse.json({ error: "Unauthorized" });
 
     // Format items
 
@@ -62,6 +64,11 @@ export async function GET(
       let needsPurchase = false;
       let needsConfiguration = false;
       let canAction;
+      const assignment = i.assignments.find(
+        (item) => item.requestItemId === i.id
+      );
+      const assignedBy = ` ${assignment?.assigner?.name} - ${assignment?.assigner?.department}`;
+
       if (i.license) {
         if (i.license.type === "SEAT_BASED") {
           // Seat-based licenses
@@ -126,6 +133,7 @@ export async function GET(
         needsConfiguration,
         canAction,
         statusMessage,
+        assignedBy,
         approvers:
           i.approvals
             ?.map((a) => ({

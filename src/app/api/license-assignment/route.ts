@@ -119,7 +119,7 @@ export async function GET() {
 
           assignedCount: assignedCount || 0,
           progressPercent: Math.round(
-            (assignedCount || 0 / readyToAssign) * 100
+            (assignedCount || 0 / readyToAssign || 0) * 100
           ),
         },
       };

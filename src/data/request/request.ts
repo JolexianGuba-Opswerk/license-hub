@@ -1,3 +1,4 @@
+import { logAuditEvent } from "@/actions/audit/action";
 import { prisma } from "@/lib/prisma";
 import { sendNotification } from "@/lib/services/notification/notificationService";
 import { NotificationType, RequestItem } from "@prisma/client";
@@ -42,7 +43,38 @@ export async function createRequest(
               },
             },
           },
+          requestedFor: {
+            select: { name: true },
+          },
+          requestor: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
+      });
+
+      await logAuditEvent({
+        userId: requestor.id,
+        action: "CREATED",
+        entity: "LicenseRequest",
+        entityId: request.id,
+        description: `${
+          request?.requestor.name ?? "A user"
+        } created a new license request ${
+          request.requestor.id === requestor.id
+            ? "for themselves"
+            : `on behalf of ${request.requestedFor?.name ?? "another user"}`
+        } containing ${request.items.length} item(s).`,
+        changes: {
+          requestedForId,
+          items: request.items.map((i) => ({
+            name: i.license?.name ?? i.requestedLicenseName,
+            vendor: i.license?.vendor ?? i.requestedLicenseVendor,
+          })),
+        },
+        tx: tx,
       });
 
       const errors: string[] = [];
@@ -63,13 +95,30 @@ export async function createRequest(
           select: { id: true },
         });
         if (itsgLead) {
-          await tx.requestItemApproval.create({
+          const approver = await tx.requestItemApproval.create({
             data: {
               requestItemId: item.id,
               approverId: itsgLead.id,
               level: "ITSG",
               status: "PENDING",
             },
+            include: {
+              approver: {
+                select: { name: true },
+              },
+            },
+          });
+          await logAuditEvent({
+            action: "CREATED",
+            entity: "LicenseRequest",
+            entityId: request.id,
+            description: `${
+              approver.approver.name
+            } has been assigned as the ITSG-level approver for the license request item "${
+              item.license?.name ?? "Unnamed License"
+            }". The request is now awaiting their review and approval.`,
+
+            tx: tx,
           });
         } else {
           errors.push("No ITSG team lead found.");
@@ -82,13 +131,30 @@ export async function createRequest(
             select: { managerId: true },
           });
           if (manager?.managerId) {
-            await tx.requestItemApproval.create({
+            const approver = await tx.requestItemApproval.create({
               data: {
                 requestItemId: item.id,
                 approverId: manager.managerId,
                 level: "MANAGER",
                 status: "PENDING",
               },
+              include: {
+                approver: {
+                  select: { name: true },
+                },
+              },
+            });
+            await logAuditEvent({
+              action: "CREATED",
+              entity: "LicenseRequest",
+              entityId: request.id,
+              description: `${
+                approver.approver.name
+              } has been assigned as the Manager-level approver for the license request item "${
+                item.license?.name ?? "Unnamed License"
+              }". The request is now awaiting their review and approval.`,
+
+              tx: tx,
             });
             managerId = manager.managerId;
           } else {
@@ -103,13 +169,34 @@ export async function createRequest(
             select: { id: true },
           });
           if (ownerTL) {
-            await tx.requestItemApproval.create({
+            const approver = await tx.requestItemApproval.create({
               data: {
                 requestItemId: item.id,
                 approverId: ownerTL.id,
                 level: "OWNER",
                 status: "PENDING",
               },
+              include: {
+                approver: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            });
+            await logAuditEvent({
+              action: "CREATED",
+              entity: "LicenseRequest",
+              entityId: request.id,
+              description: `${
+                approver.approver.name
+              } is assigned as approver for the license request item "${
+                item.license?.name ?? "Unnamed License"
+              }" under the ${
+                license.owner
+              } department. The request is now pending their review.`,
+
+              tx: tx,
             });
             ownerIds.push(ownerTL.id);
           } else {
@@ -118,7 +205,7 @@ export async function createRequest(
         }
       }
 
-      // 4️⃣ Prepare common notification payload
+      //  Prepare common notification payload
       const licenseNames = request.items
         .map((i) => i.license?.name ?? i.requestedLicenseName)
         .filter(Boolean)
@@ -164,7 +251,7 @@ export async function createRequest(
           {
             userId: managerId,
             type: NotificationType.LICENSE_REQUESTED,
-            payload: { ...notifyPayload, forAdmin: false },
+            payload: { ...notifyPayload, forAdmin: true },
             url: `/requests/${request.id}`,
           },
           tx
@@ -179,7 +266,7 @@ export async function createRequest(
               {
                 userId: ownerId,
                 type: NotificationType.LICENSE_REQUESTED,
-                payload: { ...notifyPayload, forAdmin: false },
+                payload: { ...notifyPayload, forAdmin: true },
                 url: `/requests/${request.id}`,
               },
               tx

@@ -14,7 +14,7 @@ export async function GET(
     const user = data?.user;
 
     if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" });
     }
 
     const userId = user.id;
@@ -62,19 +62,18 @@ export async function GET(
         requestMeta.items.some((i) => i.license?.owner === userDept));
 
     const isITSGTeamLead = userRole === "TEAM_LEAD" && userDept === "ITSG";
-
+    const isFinanceLeadManager =
+      ["TEAM_LEAD", "MANAGER"].includes(userRole) && userDept === "FINANCE";
     const hasAccess =
       isRequestor ||
       isRequestedFor ||
       isApprover ||
       isSameDeptLeadOrManager ||
-      isITSGTeamLead;
+      isITSGTeamLead ||
+      isFinanceLeadManager;
 
     if (!hasAccess) {
-      return NextResponse.json(
-        { error: "You are not authorized to view this request." },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Unauthorized" });
     }
 
     // LOADING UP FULL DETAILS SECTION
@@ -121,7 +120,12 @@ export async function GET(
                 },
               },
             },
-            assignments: { include: { licenseKey: true } },
+            assignments: {
+              include: {
+                licenseKey: true,
+                assigner: true,
+              },
+            },
             approvals: {
               include: {
                 approver: {
@@ -142,7 +146,7 @@ export async function GET(
     });
 
     if (!licenseRequest) {
-      return NextResponse.json({ error: "Request not found" }, { status: 404 });
+      return NextResponse.json({ error: "Forbidden" });
     }
 
     const updatedItems = licenseRequest.items.map((item) => {
@@ -150,7 +154,12 @@ export async function GET(
       let canTakeAction = false;
       let isDoneApproving = false;
       const licenseStatus = item.status;
+      let canPurchase = false;
       let declineReason = "";
+      const assignment = item.assignments.find(
+        (i) => i.requestItemId === item.id
+      );
+      const assignedBy = ` ${assignment?.assigner?.name} - ${assignment?.assigner?.department}`;
       for (const approval of item.approvals) {
         if (approval.status === "APPROVED" && approval.approver.id === userId) {
           isDoneApproving = true;
@@ -174,20 +183,33 @@ export async function GET(
       }
       // CHECKING IF ITEM NEEDS PURCHASE BASED ON TYPE
       if (item?.license?.type === "SEAT_BASED") {
-        const totalSeats = item.license.totalSeats || 0;
-        const assignedCount = item.assignments.filter(
-          (a) => a.status === "ACTIVE"
+        const totalSeats = item.license?.totalSeats || 0;
+        const assignedCount = item.license?.licenseKeys.filter(
+          (a) => a.status === "ASSIGNED"
         ).length;
+
         const availableCount = totalSeats - assignedCount;
-        needsPurchase = availableCount <= 0 && totalSeats > 0;
-      } else {
+        const requiredStatus = ["PENDING", "REVIEWING"];
+        needsPurchase =
+          availableCount <= 0 &&
+          totalSeats > 0 &&
+          requiredStatus.includes(item.status);
+      } else if (item.license?.type === "KEY_BASED") {
         const totalSeats = item.license?.totalSeats || 0;
         const activeKeys = item.license?.licenseKeys.filter(
           (k) => k.status === "ACTIVE"
         ).length;
         const availableCount = activeKeys || 0;
-        needsPurchase = availableCount <= 0 && totalSeats > 0;
+        const requiredStatus = ["PENDING", "REVIEWING"];
+        needsPurchase =
+          availableCount <= 0 &&
+          totalSeats > 0 &&
+          requiredStatus.includes(item.status);
+      } else {
+        needsPurchase = item.type === "OTHER";
       }
+
+      canPurchase = userRole === "TEAM_LEAD" && userDept === "ITSG";
 
       return {
         ...item,
@@ -195,6 +217,8 @@ export async function GET(
         isDoneApproving,
         declineReason,
         needsPurchase,
+        canPurchase,
+        assignedBy,
       };
     });
 

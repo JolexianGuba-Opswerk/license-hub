@@ -6,6 +6,7 @@ export async function GET(
   req: Request,
   { params }: { params: { id: string } }
 ) {
+  const { id } = await params;
   const supabase = await createClient();
   const {
     data: { user },
@@ -28,23 +29,32 @@ export async function GET(
 
   try {
     const procurement = await prisma.procurementRequest.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         requestedBy: true,
         approvedBy: true,
+        attachments: true,
         requestItem: {
           include: {
             license: true,
+            request: true,
           },
         },
       },
     });
-
     if (!procurement) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    return NextResponse.json(procurement);
+    const canTakeAction =
+      ["MANAGER", "TEAM_LEAD"].includes(userRole) &&
+      userDepartment === "FINANCE" &&
+      procurement.status === "PENDING";
+
+    const canUploadProof =
+      procurement.status === "APPROVED" &&
+      procurement.requestedById === user.id;
+    return NextResponse.json({ procurement, canTakeAction, canUploadProof });
   } catch (error) {
     console.error("Error fetching procurement:", error);
     return NextResponse.json(
