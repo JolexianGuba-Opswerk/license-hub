@@ -36,12 +36,8 @@ interface CreateUserDrawerProps {
 
 export function CreateUserDrawer({ children, mutate }: CreateUserDrawerProps) {
   const isMobile = useIsMobile();
-  const initialState = { success: false, error: "" };
 
-  const [state, formAction, pending] = React.useActionState(
-    createUserAction,
-    initialState
-  );
+  const [pending, setIsPending] = React.useState(false);
 
   const [formData, setFormData] = React.useState({
     name: "",
@@ -69,15 +65,22 @@ export function CreateUserDrawer({ children, mutate }: CreateUserDrawerProps) {
     fetcher
   );
 
-  React.useEffect(() => {
-    if (state.error) {
-      toast.error(state.error);
-    } else if (state.success) {
-      toast.success("User is created Successfully!!");
-      mutate();
+  const handleSubmit = async () => {
+    try {
+      setIsPending(true);
+      const response = await createUserAction(formData);
+      if (response.error || !response.success) {
+        return toast.error(response?.error);
+      }
+      toast.success("User created successfully");
       resetForm();
+      mutate();
+    } catch {
+      return toast.error("Something went wrong in saving");
+    } finally {
+      setIsPending(false);
     }
-  }, [state]);
+  };
 
   const filteredManagers = React.useMemo(
     () => manager?.filter((m) => m.department === formData.department),
@@ -96,10 +99,7 @@ export function CreateUserDrawer({ children, mutate }: CreateUserDrawerProps) {
           </DrawerDescription>
         </DrawerHeader>
 
-        <form
-          action={formAction}
-          className="flex flex-col gap-4 px-4 py-2 overflow-y-auto"
-        >
+        <form className="flex flex-col gap-4 px-4 py-2 overflow-y-auto">
           <div className="space-y-2">
             <Label htmlFor="name">Full Name</Label>
             <Input
@@ -240,7 +240,12 @@ export function CreateUserDrawer({ children, mutate }: CreateUserDrawerProps) {
           </div>
 
           <DrawerFooter className="px-0 pb-0 flex flex-col gap-2">
-            <Button type="submit" disabled={pending} className="w-full">
+            <Button
+              type="submit"
+              disabled={pending}
+              className="w-full"
+              onClick={handleSubmit}
+            >
               {pending ? "Creating..." : "Create User"}
             </Button>
             <DrawerClose asChild>

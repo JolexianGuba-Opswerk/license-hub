@@ -37,7 +37,10 @@ import { fetcher } from "@/lib/fetcher";
 import { IconTrash } from "@tabler/icons-react";
 import { License } from "@/lib/schemas/license-management/license";
 import { LicenseKeyStatus } from "@prisma/client";
-import { addLicenseKeyAction } from "@/actions/license-management/license-key/action";
+import {
+  addLicenseKeyAction,
+  removeLicenseKeyAction,
+} from "@/actions/license-management/license-key/action";
 import { TableSkeleton } from "@/components/TableSkeleton";
 import { formatDateTime } from "@/lib/utils/formatDateTime";
 
@@ -69,7 +72,7 @@ export function ManageLicenseKeysDrawer({
     setIsAdding(true);
     try {
       const response = await addLicenseKeyAction(license.id, newKey);
-      if (response.error) throw new Error(response.error);
+      if (response.error) return toast.error(response.error);
       toast.success("License key added successfully");
       setNewKey("");
       mutate();
@@ -82,35 +85,14 @@ export function ManageLicenseKeysDrawer({
   };
 
   const removeKey = async (keyId: string) => {
-    // TODO: call DELETE API
-    mutate(
-      (prev) =>
-        prev
-          ? {
-              ...prev,
-              licenseKeys: prev.licenseKeys.filter((k) => k.id !== keyId),
-            }
-          : prev,
-      false
-    );
-    toast.success("License key removed");
+    const response = await removeLicenseKeyAction(keyId);
+    if (response.error) return toast.error(response.error);
+    mutate();
+    return toast.success("License key removed");
   };
 
   const updateStatus = async (keyId: string, status: LicenseKeyStatus) => {
-    // TODO: call PATCH API
-    mutate(
-      (prev) =>
-        prev
-          ? {
-              ...prev,
-              licenseKeys: prev.licenseKeys.map((k) =>
-                k.id === keyId ? { ...k, status } : k
-              ),
-            }
-          : prev,
-      false
-    );
-    toast.success(`Status updated to ${status}`);
+    return toast.success(`This feature will be available soon`);
   };
 
   return (
@@ -160,7 +142,7 @@ export function ManageLicenseKeysDrawer({
                     <TableHead>Date Added</TableHead>
                     <TableHead>Added By</TableHead>
                     <TableHead>Assigned To</TableHead>
-                    <TableHead className="w-24 text-center">Actions</TableHead>
+                    <TableHead className="w-24 text-center">Remove</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

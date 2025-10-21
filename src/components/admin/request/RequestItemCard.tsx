@@ -53,7 +53,7 @@ export function RequestItemCard({ item, request, currentUser, mutate }) {
       setProcessingItem(null);
     }
   };
-  console.log(item);
+
   return (
     <div className="p-4 sm:p-6 border rounded-xl shadow-sm hover:shadow-md transition-shadow bg-white w-full flex flex-col gap-4">
       {/* Header */}
@@ -78,6 +78,7 @@ export function RequestItemCard({ item, request, currentUser, mutate }) {
           currentUser?.user_metadata?.role === "TEAM_LEAD" &&
           item.status === "PENDING" && (
             <AddApproverDialog
+              mutate={mutate}
               requestItemId={item.id}
               currentApprovers={item.approvals ?? []}
             />
@@ -126,43 +127,46 @@ export function RequestItemCard({ item, request, currentUser, mutate }) {
       <Separator className=" sm:my-4" />
 
       {/* ACTIONS SECTION */}
-      {item.needsPurchase && item.canPurchase && (
-        <div className="pb-2">
-          <Alert className="border border-yellow-300 bg-yellow-50 text-yellow-800 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center space-x-2">
-              <ShoppingCart className="h-5 w-5 text-yellow-600" />
-              <div>
-                <AlertTitle className="font-semibold">
-                  Needs Purchase
-                </AlertTitle>
-                <AlertDescription className="text-sm">
-                  No available seats or license keys. Please request a purchase
-                  first
-                </AlertDescription>
+      {item.needsPurchase &&
+        item.canPurchase &&
+        item.status !== "PURCHASING" && (
+          <div className="pb-2">
+            <Alert className="border border-yellow-300 bg-yellow-50 text-yellow-800 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center space-x-2">
+                <ShoppingCart className="h-5 w-5 text-yellow-600" />
+                <div>
+                  <AlertTitle className="font-semibold">
+                    Needs Purchase
+                  </AlertTitle>
+                  <AlertDescription className="text-sm">
+                    No available seats or license keys. Please request a
+                    purchase first
+                  </AlertDescription>
+                </div>
               </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3 sm:mt-0 border-yellow-400 text-yellow-700 hover:bg-yellow-100"
-              onClick={() => {
-                const queryParams = new URLSearchParams({
-                  requestItemId: item.id,
-                  vendor: item?.license?.vendor || item?.requestedLicenseVendor,
-                  name: item.license?.name || item?.requestedLicenseName,
-                  justification: item.justification,
-                  // Add other fields you want to prefill
-                }).toString();
-                router.push(`/procurement/new/?${queryParams}`);
-              }}
-            >
-              Purchase
-            </Button>
-          </Alert>
-        </div>
-      )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 sm:mt-0 border-yellow-400 text-yellow-700 hover:bg-yellow-100"
+                onClick={() => {
+                  const queryParams = new URLSearchParams({
+                    requestItemId: item.id,
+                    vendor:
+                      item?.license?.vendor || item?.requestedLicenseVendor,
+                    name: item.license?.name || item?.requestedLicenseName,
+                    justification: item.justification,
+                    // Add other fields you want to prefill
+                  }).toString();
+                  router.push(`/procurement/new/?${queryParams}`);
+                }}
+              >
+                Purchase
+              </Button>
+            </Alert>
+          </div>
+        )}
 
-      {item.canTakeAction ? (
+      {item.canTakeAction && item.status !== "PURCHASING" ? (
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 pt-2">
             {/* DECLINE BUTTON */}
@@ -254,17 +258,29 @@ export function RequestItemCard({ item, request, currentUser, mutate }) {
               </Alert>
             </div>
           )}
-          {item.status === "DENIED" && (
+          {item.ProcurementRequest[0]?.rejectionReason && (
             <Alert className="border-red-200 bg-red-50 text-red-700">
               <XCircle className="h-4 w-4" />
-              <AlertTitle>Declined</AlertTitle>
+              <AlertTitle>Rejected by Finance</AlertTitle>
               <AlertDescription>
-                {item.declineReason
-                  ? `Reason: ${item.declineReason}`
-                  : "This request item was declined."}
+                {item.ProcurementRequest[0]?.rejectionReason
+                  ? `Reason: ${item.ProcurementRequest[0]?.rejectionReason}`
+                  : "This procurement request was rejected by Finance."}
               </AlertDescription>
             </Alert>
           )}
+          {item.status === "DENIED" &&
+            !item.ProcurementRequest[0]?.rejectionReason && (
+              <Alert className="border-red-200 bg-red-50 text-red-700">
+                <XCircle className="h-4 w-4" />
+                <AlertTitle>Declined</AlertTitle>
+                <AlertDescription>
+                  {item.declineReason
+                    ? `Reason: ${item.declineReason}`
+                    : "This request item was declined."}
+                </AlertDescription>
+              </Alert>
+            )}
           {item.status === "PENDING" && (
             <Alert className="border-gray-200 bg-gray-50 text-gray-700">
               <Clock className="h-4 w-4" />

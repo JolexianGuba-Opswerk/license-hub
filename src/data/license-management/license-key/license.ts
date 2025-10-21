@@ -5,64 +5,67 @@ import { LicenseKeyStatus } from "@prisma/client";
 export async function addLicenseKey(
   licenseId: string,
   key: string,
-  addedBy: string
+  currentUser: {
+    userId: string;
+    userDepartment: string;
+  }
 ) {
-  try {
-    // Check & Guard section
-    const isExist = await prisma.licenseKey.findFirst({
-      where: {
-        licenseId: licenseId,
-        key: key,
-      },
-      select: { id: true },
+  return await prisma
+    .$transaction(async (tx) => {
+      //GETTING LICENSE KEY
+      const license = await tx.license.findUnique({
+        where: { id: licenseId },
+        select: {
+          id: true,
+          totalSeats: true,
+          owner: true,
+          licenseKeys: {
+            select: { key: true },
+          },
+        },
+      });
+
+      if (!license) {
+        return { error: "License not found." };
+      }
+      if (license.owner !== currentUser.userDepartment)
+        if (!license.totalSeats || license.totalSeats <= 0) {
+          return { error: "No total seats configured for this license." };
+        }
+
+      // 2️⃣ Check duplicate
+      const isDuplicate = license.licenseKeys.some(
+        (k) => k?.key.trim().toLowerCase() === key.trim().toLowerCase()
+      );
+
+      if (isDuplicate) {
+        return { error: "License key already exists for this license." };
+      }
+
+      // 3️⃣ Check seat availability
+      const seatsUsed = license?.licenseKeys.length;
+      const availableSeats = license.totalSeats - seatsUsed;
+
+      if (availableSeats <= 0) {
+        return { error: "No available seats remaining for this license." };
+      }
+
+      // 4️⃣ Create new key
+      const newKey = await tx.licenseKey.create({
+        data: {
+          licenseId,
+          key,
+          status: "ACTIVE",
+          addedById: currentUser.userId,
+        },
+      });
+
+      return { data: newKey };
+    })
+    .catch((err) => {
+      console.error("Error adding license key:", err);
+      return { error: "Something went wrong creating license key." };
     });
-
-    if (isExist) {
-      return { error: "License key already exists for this license" };
-    }
-    const seatsUsed = await prisma.licenseKey.count({
-      where: {
-        licenseId: licenseId,
-      },
-    });
-
-    const totalSeats = await prisma.license.findFirst({
-      where: { id: licenseId },
-      select: { totalSeats: true },
-    });
-
-    if (totalSeats?.totalSeats === 0) return { error: "No total seats set" };
-
-    if ((totalSeats?.totalSeats ?? 0) - seatsUsed <= 0) {
-      return { error: "No available seats remaining for this license" };
-    }
-
-    const newKey = await prisma.licenseKey.create({
-      data: {
-        licenseId,
-        key,
-        status: "ACTIVE",
-        addedById: addedBy,
-      },
-    });
-
-    return { data: newKey };
-  } catch (err) {
-    console.error(err);
-    return { error: "Something went wrong creating license key" };
-  }
-}
-
-export async function removeLicenseKey(keyId: string) {
-  try {
-    const deleted = await prisma.licenseKey.delete({
-      where: { id: keyId },
-    });
-    return { data: deleted };
-  } catch (err) {
-    console.error(err);
-    return { error: "Something went wrong removing license key" };
-  }
 }
 
 export async function updateLicenseKeyStatus(
@@ -108,5 +111,39 @@ export async function revokeLicenseKey(keyId: string) {
   } catch (err) {
     console.error(err);
     return { error: "Something went wrong revoking license key" };
+  }
+}
+
+export async function removeLicenseKey(keyId: string) {
+  try {
+    const key = await prisma.licenseKey.findFirst({
+      where: { id: keyId },
+      include: {
+        assignment: {
+          where: { status: "ACTIVE" }, // or use your active assignment status
+          select: { id: true, userId: true },
+        },
+      },
+    });
+
+    if (!key) {
+      return { error: "License key not found." };
+    }
+
+    if (key.assignment?.length > 0) {
+      return {
+        error:
+          "Cannot remove this license key because it is currently assigned to a user.",
+      };
+    }
+
+    await prisma.licenseKey.delete({
+      where: { id: keyId },
+    });
+
+    return { success: true, message: "License key removed successfully." };
+  } catch (err) {
+    console.error("Error removing license key:", err);
+    return { error: "Something went wrong while removing the license key." };
   }
 }

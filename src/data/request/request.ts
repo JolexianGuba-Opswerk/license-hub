@@ -14,6 +14,29 @@ export async function createRequest(
   try {
     const result = await prisma.$transaction(async (tx) => {
       // 1️⃣ Create the main license request
+      for (const item of items) {
+        if (item.type === "LICENSE" && item.licenseId) {
+          const existingAssignment = await tx.licenseAssignment.findFirst({
+            where: {
+              licenseKey: {
+                licenseId: item.licenseId,
+              },
+              userId: requestedForId || requestor.id,
+              status: "ACTIVE",
+            },
+            include: {
+              licenseKey: { select: { license: { select: { name: true } } } },
+            },
+          });
+
+          if (existingAssignment) {
+            return {
+              error: `Already has an active license for "${existingAssignment.licenseKey.license.name}".`,
+            };
+          }
+        }
+      }
+
       const request = await tx.licenseRequest.create({
         data: {
           requestorId: requestor.id,

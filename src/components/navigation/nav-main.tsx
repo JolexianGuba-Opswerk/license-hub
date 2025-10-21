@@ -12,6 +12,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { canAccessSidebarItem } from "@/lib/permissions/admin/sidebar-permission";
+import { createClient } from "@/lib/supabase/supabase-client";
+import { useEffect, useState } from "react";
 
 export function NavMain({
   items,
@@ -24,6 +27,25 @@ export function NavMain({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [userRole, setUserRole] = useState();
+  const [userDepartment, setUserDepartment] = useState();
+
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      setUserDepartment(user?.user_metadata.department);
+      setUserRole(user?.user_metadata.role);
+    };
+    getCurrentUser();
+  });
+
+  const filteredItems = items.filter((item) =>
+    canAccessSidebarItem(item.title, userRole, userDepartment)
+  );
   return (
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
@@ -50,7 +72,7 @@ export function NavMain({
           </SidebarMenuItem>
         </SidebarMenu>
         <SidebarMenu>
-          {items.map((item) => {
+          {filteredItems?.map((item) => {
             // Remove query parameters for comparison
             const itemPath = item.url.split("?")[0];
             const currentPath = pathname.split("?")[0];

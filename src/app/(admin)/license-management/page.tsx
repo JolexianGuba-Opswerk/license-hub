@@ -44,10 +44,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { fetcher } from "@/lib/fetcher";
 
-import {
-  License,
-  LicenseResponse,
-} from "@/lib/schemas/license-management/license";
+import { License } from "@/lib/schemas/license-management/license";
 import { LicenseStatus, LicenseType } from "@prisma/client";
 import { Trash2Icon } from "lucide-react";
 import useDebounce from "@/lib/utils/useDebounce";

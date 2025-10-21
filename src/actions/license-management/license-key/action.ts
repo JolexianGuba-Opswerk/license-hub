@@ -3,19 +3,30 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { LicenseKeyStatus } from "@prisma/client";
-import { addLicenseKey } from "@/data/license-management/license-key/license";
-import { UserManagementPermission } from "@/lib/permissions/admin/permission";
+import {
+  addLicenseKey,
+  removeLicenseKey,
+} from "@/data/license-management/license-key/license";
+import { createClient } from "@/lib/supabase/supabase-server";
 
 export async function addLicenseKeyAction(licenseId: string, key: string) {
-  const isPermitted = await UserManagementPermission();
-  // TODO: CHECK IF THERE ARE STILL SEATS AVAILABLE
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
-  if (!isPermitted.success || !isPermitted.data)
-    return {
-      error: "Unauthorized: You do not have permission to perform this action",
-    };
-
-  const response = await addLicenseKey(licenseId, key, isPermitted.data.id);
+  if (authError || !user) {
+    return { success: false, error: "Unauthorized" };
+  }
+  const allowedRole = ["TEAM_LEAD", "MANAGER", "ADMIN"];
+  if (!allowedRole.includes(user.user_metadata.role)) {
+    return { error: "Forbidden" };
+  }
+  const response = await addLicenseKey(licenseId, key, {
+    userId: user.id,
+    userDepartment: user.user_metadata.department,
+  });
   if (response.error)
     return {
       error: response.error || "Something went wrong in creating license key",
@@ -24,12 +35,27 @@ export async function addLicenseKeyAction(licenseId: string, key: string) {
   return { success: true };
 }
 
-export async function removeLicenseKey(licenseId: string, keyId: string) {
-  await prisma.licenseKey.delete({
-    where: { id: keyId },
-  });
+export async function removeLicenseKeyAction(keyId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
-  revalidatePath(`/license-management/${licenseId}`);
+  if (authError || !user) {
+    return { success: false, error: "Unauthorized" };
+  }
+  const allowedRole = ["TEAM_LEAD", "MANAGER", "ADMIN"];
+  if (!allowedRole.includes(user.user_metadata.role)) {
+    return { error: "Forbidden" };
+  }
+
+  const response = await removeLicenseKey(keyId);
+  if (response.error)
+    return {
+      error: response.error || "Something went wrong in creating license key",
+    };
+
   return { success: true };
 }
 

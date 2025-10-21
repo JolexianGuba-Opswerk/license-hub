@@ -115,11 +115,11 @@ export async function GET(
                 status: true,
                 type: true,
                 licenseKeys: {
-                  where: { status: "ACTIVE" },
                   select: { id: true, status: true },
                 },
               },
             },
+            ProcurementRequest: { select: { rejectionReason: true } },
             assignments: {
               include: {
                 licenseKey: true,
@@ -155,6 +155,7 @@ export async function GET(
       let isDoneApproving = false;
       const licenseStatus = item.status;
       let canPurchase = false;
+
       let declineReason = "";
       const assignment = item.assignments.find(
         (i) => i.requestItemId === item.id
@@ -184,33 +185,41 @@ export async function GET(
       // CHECKING IF ITEM NEEDS PURCHASE BASED ON TYPE
       if (item?.license?.type === "SEAT_BASED") {
         const totalSeats = item.license?.totalSeats || 0;
-        const assignedCount = item.license?.licenseKeys.filter(
+        const assignedCount = item.license?.licenseKeys?.filter(
           (a) => a.status === "ASSIGNED"
         ).length;
 
         const availableCount = totalSeats - assignedCount;
+
         const requiredStatus = ["PENDING", "REVIEWING"];
+
         needsPurchase =
           availableCount <= 0 &&
           totalSeats > 0 &&
           requiredStatus.includes(item.status);
       } else if (item.license?.type === "KEY_BASED") {
         const totalSeats = item.license?.totalSeats || 0;
-        const activeKeys = item.license?.licenseKeys.filter(
+        const configuredKeysCount = item.license?.licenseKeys?.length || 0;
+        const activeKeysCount = item.license?.licenseKeys?.filter(
           (k) => k.status === "ACTIVE"
         ).length;
-        const availableCount = activeKeys || 0;
+
         const requiredStatus = ["PENDING", "REVIEWING"];
-        needsPurchase =
-          availableCount <= 0 &&
-          totalSeats > 0 &&
-          requiredStatus.includes(item.status);
+
+        const allConfigured =
+          totalSeats > 0 && configuredKeysCount >= totalSeats;
+        const allUsed = allConfigured && activeKeysCount >= configuredKeysCount;
+
+        needsPurchase = allUsed && requiredStatus.includes(item.status);
       } else {
         needsPurchase = item.type === "OTHER";
       }
 
       canPurchase = userRole === "TEAM_LEAD" && userDept === "ITSG";
-
+      console.log(
+        "Procurement Request",
+        item.ProcurementRequest[0]?.rejectionReason
+      );
       return {
         ...item,
         canTakeAction,

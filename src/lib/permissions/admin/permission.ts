@@ -1,5 +1,3 @@
-// todo : add all the permission check for admin's in here
-
 import { createClient } from "@/lib/supabase/supabase-server";
 
 export async function UserManagementPermission() {

@@ -16,9 +16,16 @@ export function RelatedItemsCard({ procurement }: RelatedItemsCardProps) {
       <CardHeader className="pb-1">
         <CardTitle className="text-lg">Related Items</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 cursor-pointer">
         {procurement.requestItem.license && (
-          <div className="p-4 border rounded-lg space-y-2">
+          <div
+            className="p-4 border rounded-lg space-y-2"
+            onClick={() =>
+              router.push(
+                `/license-management/${procurement.requestItem?.license?.id}`
+              )
+            }
+          >
             <p className="text-sm font-medium text-gray-900">Linked License</p>
             <p className="text-sm text-gray-600">
               {procurement.requestItem.license.name}

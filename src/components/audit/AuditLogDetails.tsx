@@ -12,7 +12,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getActionVariant } from "./helper";
 import { format } from "date-fns";
-import { X } from "lucide-react";
 
 interface AuditLog {
   id: string;

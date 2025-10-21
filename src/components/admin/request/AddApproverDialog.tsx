@@ -29,21 +29,26 @@ import { addApproverToRequestItem } from "@/actions/request/action";
 interface AddApproverDialogProps {
   requestItemId: string;
   currentApprovers: any[];
+  mutate: () => void;
 }
 
 export function AddApproverDialog({
   requestItemId,
   currentApprovers,
+  mutate,
 }: AddApproverDialogProps) {
   const [open, setOpen] = useState(false);
   const [selectedApprover, setSelectedApprover] = useState<string>("");
   const [selectedLevel, setSelectedLevel] = useState<ApprovalLevel>("ITSG");
   const [isAdding, setIsAdding] = useState(false);
 
-  const { data: approvers, mutate } = useSWR(`/api/request/approver`, fetcher);
+  const { data: approvers } = useSWR(`/api/request/approver`, fetcher);
+  const approversData = Array.isArray(approvers)
+    ? approvers
+    : approvers?.data ?? [];
 
   // TO AVOID SELECTING OWN ID
-  const filteredApprovers = (approvers ?? []).filter((approver) => {
+  const filteredApprovers = (approversData ?? []).filter((approver) => {
     const currents = currentApprovers ?? [];
     return !currents.some((current) => current.approverId === approver.id);
   });
@@ -63,7 +68,7 @@ export function AddApproverDialog({
         toast.error(response.error || "Something went wrong");
       } else {
         toast.success("Added Succesfully");
-        mutate(`/api/request/${requestItemId}`);
+        mutate();
       }
 
       // Reset and close

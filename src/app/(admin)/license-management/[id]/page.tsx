@@ -264,7 +264,7 @@ export default function LicenseDetailsPage() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => router.push("/license-management")}
+            onClick={() => router.back()}
             className="h-9 w-9"
           >
             <ArrowLeft className="h-4 w-4" />

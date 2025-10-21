@@ -3,56 +3,55 @@ import { prisma } from "@/lib/prisma";
 import { UpdateUserType, UserType } from "@/lib/schemas/user-management/user";
 import { supabaseAdmin } from "@/lib/supabase/supabase-admin";
 import { GetUsersParams, Manager } from "@/lib/types/user";
-import { unstable_cache } from "next/cache";
+
 import { sendNotification } from "@/lib/services/notification/notificationService";
 import { NotificationType } from "@prisma/client";
 
 // Create user in database and Supabase Auth
 export async function createUser(userData: UserType, currentUser: string) {
   let createdAuthUserId: string | null = null;
-  // IF MANAGER IS NOT ACCOUNT OWNER AND MANAGER
   const roleWithoutManager = ["MANAGER", "ACCOUNT_OWNER"];
+
   try {
+    // 🧭 1. Validate manager requirements
     if (!roleWithoutManager.includes(userData.role) && !userData.managerId) {
       return { error: "Employee must have a manager assigned" };
-    } else if (roleWithoutManager.includes(userData.role)) {
-      // CHECK IF THERE IS MANAGER ALREADY FOR A CURRENT DEPARTMENT
+    }
+
+    if (roleWithoutManager.includes(userData.role)) {
       const hasManagerAlready = await prisma.userDetails.findFirst({
         where: {
           department: userData.department,
           role: userData.role,
         },
-        select: {
-          id: true,
-        },
+        select: { id: true },
       });
-      if (hasManagerAlready)
+
+      if (hasManagerAlready) {
         return {
-          error:
-            "This department already has a manager/account owner and team lead  assigned",
+          error: "This department already has a manager/account owner assigned",
         };
+      }
     }
 
-    // CHECK IF MANAGER EXIST AND IF THEY ARE IN SAME DEPARTMENT
-    if (userData?.managerId && userData.managerId !== "none") {
+    // 🧭 2. Validate manager existence and department
+    if (userData.managerId && userData.managerId !== "none") {
       const isValidManager = await prisma.userDetails.findFirst({
         where: {
           id: userData.managerId,
           department: userData.department,
           role: "MANAGER",
         },
-        select: {
-          id: true,
-        },
+        select: { id: true },
       });
 
       if (!isValidManager)
         return {
-          error: "Please select a valid manager from the same department",
+          error: "Please select a valid manager in the same department",
         };
     }
 
-    // SUPABASE AUTH USER CREATION
+    // 🧭 3. Create Supabase Auth user
     const { data: user, error } = await supabaseAdmin.auth.admin.createUser({
       email: userData.email,
       password: userData.password,
@@ -64,93 +63,83 @@ export async function createUser(userData: UserType, currentUser: string) {
       email_confirm: true,
     });
 
-    if (error) {
-      return { error: error?.message ?? "Something went wrong!" };
-    }
+    if (error) return { error: error.message ?? "Failed to create auth user" };
 
-    // ACTUAL DATABASE USER CREATION WITH TRANSACTION WRAP
-    createdAuthUserId = user.user.id;
-    try {
-      const result = await prisma.$transaction(async (tx) => {
-        const newUser = await tx.userDetails.create({
-          data: {
-            id: createdAuthUserId!,
-            name: userData.name,
-            email: userData.email,
-            role: userData.role,
-            department: userData.department,
-            position: userData.position,
-            addedById: currentUser,
-            managerId:
-              userData.managerId === "none" ? null : userData.managerId,
-          },
-        });
+    createdAuthUserId = user.user?.id;
+    if (!createdAuthUserId)
+      return { error: "Auth user creation returned no ID" };
 
-        // Notify each department's Admin (ADMIN, ACCOUNT_OWNERS, MANAGER)
-        const departmentAdmins = await tx.userDetails.findMany({
-          where: {
-            department: userData.department,
-            role: {
-              in: ["ADMIN", "ACCOUNT_OWNER", "MANAGER"],
-            },
-          },
-        });
-
-        await Promise.all(
-          departmentAdmins.map((admin) =>
-            sendNotification(
-              {
-                userId: admin.id,
-                type: NotificationType.USER_ADDED,
-                payload: {
-                  userName: newUser.name,
-                  department: newUser.department,
-                },
-                url: `/user-management/${newUser.id}`,
-              },
-              tx
-            )
-          )
-        );
-
-        // Notification for employee side
-        await sendNotification(
-          {
-            userId: newUser.id,
-            type: NotificationType.USER_ADDED,
-            payload: {
-              forUser: true,
-              department: newUser.department,
-            },
-            url: `/`,
-          },
-          tx
-        );
+    // 🧭 4. Create database user and send notifications (transaction)
+    const result = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.userDetails.create({
+        data: {
+          id: createdAuthUserId,
+          name: userData.name,
+          email: userData.email,
+          role: userData.role,
+          department: userData.department,
+          position: userData.position,
+          addedById: currentUser,
+          managerId: userData.managerId === "none" ? null : userData.managerId,
+        },
       });
-      return { data: result };
-    } catch (transactionError) {
-      // If transaction fails, delete the auth user
-      console.warn("Transaction failed, deleting auth user:", transactionError);
-      if (createdAuthUserId) {
-        try {
-          await supabaseAdmin.auth.admin.deleteUser(createdAuthUserId);
-        } catch (deleteError) {
-          console.error("Failed to delete auth user:", deleteError);
-        }
-      }
-      return { error: "Failed to create user in database" };
-    }
+
+      // Notify admins in department
+      const departmentAdmins = await tx.userDetails.findMany({
+        where: {
+          department: userData.department,
+          role: { in: ["ADMIN", "ACCOUNT_OWNER", "MANAGER"] },
+        },
+      });
+
+      await Promise.all(
+        departmentAdmins.map((admin) =>
+          sendNotification(
+            {
+              userId: admin.id,
+              type: NotificationType.USER_ADDED,
+              payload: {
+                userName: newUser.name,
+                department: newUser.department,
+              },
+              url: `/user-management/${newUser.id}`,
+            },
+            tx
+          )
+        )
+      );
+
+      // Notify employee
+      await sendNotification(
+        {
+          userId: newUser.id,
+          type: NotificationType.USER_ADDED,
+          payload: {
+            forUser: true,
+            department: newUser.department,
+          },
+          url: `/`,
+        },
+        tx
+      );
+
+      return newUser;
+    });
+
+    return { data: result };
   } catch (error) {
-    console.warn(error);
+    console.warn("Create user failed:", error);
+
+    // 🧹 Clean up Supabase user if something failed
     if (createdAuthUserId) {
       try {
         await supabaseAdmin.auth.admin.deleteUser(createdAuthUserId);
-        return { error: "Something went wrong in creating" };
-      } catch (error) {
-        return { error: error || "Something went wrong in creating" };
+      } catch (deleteError) {
+        console.error("Failed to delete auth user:", deleteError);
       }
     }
-    return { error: "Something went wrong in creating" };
+
+    return { error: "Something went wrong in creating user" };
   }
 }
 
@@ -213,25 +202,25 @@ export async function updateUser(userData: UpdateUserType) {
     }
   }
 
-  // UPDATE SUPABASE AUTH USER
-  const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
-    userData.id,
-    {
-      email: userData.email,
-      user_metadata: {
-        role: userData.role,
-        department: userData.department,
-        position: userData.position,
-      },
-    }
-  );
-
-  if (authError) return { error: authError.message ?? "Failed to update user" };
-
-  // UPDATE ACTUAL DATABASE
   try {
+    // UPDATE SUPABASE AUTH USER
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+      userData.id,
+      {
+        email: userData.email,
+        user_metadata: {
+          role: userData.role,
+          department: userData.department,
+          position: userData.position,
+        },
+      }
+    );
+
+    if (authError)
+      return { error: authError.message ?? "Failed to update user" };
+    // UPDATE ACTUAL DATABASE
     const result = await prisma.$transaction(async (tx) => {
-      await tx.userDetails.update({
+      const updatedUser = await tx.userDetails.update({
         where: { id: userData.id },
         data: {
           name: userData.name,
@@ -242,96 +231,115 @@ export async function updateUser(userData: UpdateUserType) {
           managerId: userData.managerId === "none" ? null : userData.managerId,
         },
       });
-    });
 
+      return updatedUser;
+    });
+    console.log("updated data result", result);
     return { data: result };
   } catch (err) {
-    console.error(err);
+    console.log("error message", err);
     return { error: "Something went wrong updating user" };
   }
 }
 
-export function getUsers(params: GetUsersParams) {
-  return unstable_cache(
-    async () => {
-      const page = params.page ?? 1;
-      const limit = params.limit ?? 5;
-      const skip = (page - 1) * limit;
+export async function getUsers(params: GetUsersParams) {
+  try {
+    const page = params.page ?? 1;
+    const limit = params.limit ?? 5;
+    const skip = (page - 1) * limit;
 
-      const where: any = {};
+    const where: any = {};
 
-      if (params.search) {
-        where.OR = [
-          { name: { contains: params.search, mode: "insensitive" } },
-          { email: { contains: params.search, mode: "insensitive" } },
-          { position: { contains: params.search, mode: "insensitive" } },
-        ];
-      }
+    if (params.search) {
+      where.OR = [
+        { name: { contains: params.search, mode: "insensitive" } },
+        { email: { contains: params.search, mode: "insensitive" } },
+        { position: { contains: params.search, mode: "insensitive" } },
+      ];
+    }
 
-      if (params.role && params.role !== "ALL") {
-        where.role = params.role;
-      }
-      if (params.department && params.department !== "ALL") {
-        where.department = params.department;
-      }
+    if (params.role && params.role !== "ALL") {
+      where.role = params.role;
+    }
+    if (params.department && params.department !== "ALL") {
+      where.department = params.department;
+    }
 
-      const [users, total] = await Promise.all([
-        prisma.userDetails.findMany({
-          where,
-          include: {
-            manager: { select: { id: true, name: true } },
-            addedBy: { select: { id: true, name: true } },
-          },
-          skip,
-          take: limit,
-          orderBy: { createdAt: "desc" },
-        }),
-        prisma.userDetails.count({ where }),
-      ]);
-
-      return {
-        data: users,
-        meta: {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit),
+    const [users, total] = await Promise.all([
+      prisma.userDetails.findMany({
+        where,
+        include: {
+          manager: { select: { id: true, name: true } },
+          addedBy: { select: { id: true, name: true } },
         },
-      };
-    },
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.userDetails.count({ where }),
+    ]);
 
-    [`user-management-table-${JSON.stringify(params)}`],
-    { tags: ["user-management-table"] }
-  )();
+    return {
+      data: users,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  } catch {
+    return { error: "Something went wrong in saving" };
+  }
 }
 
 export async function deleteUser(id: string) {
   try {
-    // CHECKING IF THERE IS ANY ACTIVE ASSGINED LICENSE
     const hasAssignedLicense = await prisma.licenseAssignment.count({
-      where: {
-        status: "ACTIVE",
-        userId: id,
-      },
+      where: { status: "ACTIVE", userId: id },
     });
+
     if (hasAssignedLicense) {
       return {
         error:
-          "Unable to delete this user because they still have active license assignments",
+          "Unable to delete this user because they still have active license assignments.",
       };
     }
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
-    if (error) {
-      throw new Error(`Failed to delete user: ${error.message}`);
-    }
-    await prisma.userDetails.delete({
-      where: { id: id },
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Delete related notifications (to avoid FK constraint)
+      await tx.notification.deleteMany({ where: { userId: id } });
+
+      // Delete user record
+      await tx.userDetails.delete({ where: { id } });
     });
 
-    return { data: "" };
-  } catch (e) {
-    console.log(e);
-    return { error: "Something went wrong in deleting." };
+    // Delete from Supabase Auth (after successful DB transaction)
+    const { error: supabaseError } = await supabaseAdmin.auth.admin.deleteUser(
+      id
+    );
+
+    if (supabaseError) {
+      // Optional rollback if Supabase deletion fails
+      console.error("Supabase delete error:", supabaseError);
+      return {
+        error: `User deleted in DB, but failed to delete in Supabase: ${supabaseError.message}`,
+      };
+    }
+
+    return { data: result };
+  } catch (error: any) {
+    console.error("Delete user failed:", error);
+
+    // Handle specific Prisma error codes
+    if (error.code === "P2003") {
+      return {
+        error:
+          "Cannot delete this user because there are still related records (e.g. notifications).",
+      };
+    }
+
+    return { error: "Something went wrong while deleting the user." };
   }
 }
 

@@ -219,9 +219,13 @@ export async function procurementDeclineApproveAction({
     // CHECK IF PROCUREMENT REQUEST EXIST
     const procurement = await prisma.procurementRequest.findUnique({
       where: { id: procurementId },
-      select: { id: true, status: true },
+      select: {
+        id: true,
+        status: true,
+        requestItem: { select: { requestId: true } },
+      },
     });
-
+    const requestId = procurement?.requestItem?.requestId;
     if (!procurement) {
       return { success: false, error: "Procurement request not found." };
     }
@@ -310,6 +314,45 @@ export async function procurementDeclineApproveAction({
         },
         select: { id: true },
       });
+
+      if (action === "REJECTED") {
+        await tx.requestItem.update({
+          where: { id: procurement.requestItemId! },
+          data: {
+            status: "DENIED",
+          },
+        });
+
+        const siblingItems = await tx.requestItem.findMany({
+          where: { requestId: requestId },
+          select: { status: true },
+        });
+
+        const statuses = siblingItems.map((i) => i.status);
+
+        let parentStatus:
+          | "ASSIGNING"
+          | "DENIED"
+          | "REVIEWING"
+          | "PENDING"
+          | "APPROVED";
+
+        if (statuses.every((s) => s === "DENIED")) {
+          parentStatus = "DENIED";
+        } else if (statuses.every((s) => s === "APPROVED")) {
+          parentStatus = "ASSIGNING";
+        } else if (statuses.every((s) => s === "PENDING")) {
+          parentStatus = "PENDING";
+        } else if (statuses.some((s) => s === "APPROVED")) {
+          parentStatus = "ASSIGNING";
+        } else {
+          parentStatus = "REVIEWING";
+        }
+        await tx.licenseRequest.update({
+          where: { id: requestId },
+          data: { status: parentStatus },
+        });
+      }
 
       admins.map(async (i) => {
         await sendNotification(

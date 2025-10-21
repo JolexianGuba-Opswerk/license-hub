@@ -40,7 +40,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { fetcher } from "@/lib/fetcher";
-import { GetUserResponse, userRoles } from "@/lib/types/user";
+import { userRoles } from "@/lib/types/user";
 import { Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 import useDebounce from "@/lib/utils/useDebounce";
@@ -59,7 +59,7 @@ export default function UserManagementTable() {
   // local state for input
   const [searchValue, setSearchValue] = React.useState(search);
   const [debouncedSearch] = useDebounce(searchValue, 500);
-
+  const [loading, setIsLoading] = React.useState(false);
   const updateParams = (updates: Record<string, string | number | null>) => {
     const params = new URLSearchParams(searchParams.toString());
     Object.entries(updates).forEach(([key, value]) => {
@@ -72,13 +72,6 @@ export default function UserManagementTable() {
     router.replace(params.toString() ? `?${params.toString()}` : "");
   };
 
-  const handleDelete = async (userId: string) => {
-    const response = await deleteUserAction(userId);
-    if (response.error) {
-      toast.error(response.error || "Something went wrong in deleting user");
-    }
-    toast.success("User deleted successfully");
-  };
   // handle search changes (debounced)
   React.useEffect(() => {
     updateParams({
@@ -89,12 +82,29 @@ export default function UserManagementTable() {
 
   const swrKey = `/api/user-management?page=${page}&search=${search}&role=${role}&department=${department}`;
   const { data, isLoading, mutate } = useSWR(swrKey, fetcher, {
-    dedupingInterval: 1000 * 60 * 5,
+    revalidateOnFocus: true,
   });
 
   if (data?.error === "Unauthorized") {
     return <ForbiddenAccessPage />;
   }
+  const handleDelete = async (userId: string) => {
+    try {
+      setIsLoading(true);
+      const response = await deleteUserAction(userId);
+      if (response.error || !response.success) {
+        return toast.error(
+          response.error || "Something went wrong in deleting user"
+        );
+      }
+      mutate();
+      toast.success("User deleted successfully");
+    } catch {
+      toast.error("Something went wrong in deleting user");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <Tabs defaultValue="users" className="w-full flex-col gap-6">
@@ -205,7 +215,11 @@ export default function UserManagementTable() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-32">
-                          <UpdateUserDrawer user={user} mutate={mutate}>
+                          <UpdateUserDrawer
+                            user={user}
+                            mutate={mutate}
+                            swr={swrKey}
+                          >
                             <DropdownMenuItem
                               onSelect={(e) => e.preventDefault()}
                             >
@@ -216,13 +230,14 @@ export default function UserManagementTable() {
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-red-600 "
+                            disabled={loading}
                             onSelect={async (e) => {
                               e.preventDefault();
                               await handleDelete(user.id);
                             }}
                           >
                             <Trash2Icon className="h-4 w-4 mr-2" />
-                            Delete
+                            {loading ? "Deleting" : "Delete"}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

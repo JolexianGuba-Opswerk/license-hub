@@ -34,22 +34,21 @@ interface UpdateUserDrawerProps {
   user: User;
   children: React.ReactNode;
   mutate: () => void;
+  swr: string;
 }
 
 export function UpdateUserDrawer({
   user,
   children,
   mutate,
+  swr,
 }: UpdateUserDrawerProps) {
   const isMobile = useIsMobile();
   const [emailGuardEnabled, setEmailGuardEnabled] = React.useState(true);
-  const initialState = { success: false, error: "" };
-  const [state, updateUser, pending] = React.useActionState(
-    updateUserAction,
-    initialState
-  );
+  const [pending, setIsPending] = React.useState(false);
 
   const [formData, setFormData] = React.useState({
+    id: user.id,
     name: user.name,
     email: user.email,
     department: user.department,
@@ -66,14 +65,23 @@ export function UpdateUserDrawer({
     }
   );
 
-  React.useEffect(() => {
-    if (state.error) {
-      toast.error(state.error);
-    } else if (state.success) {
-      toast.success("User is updated Successfully!!");
-      mutate();
+  const handleUpdate = async () => {
+    try {
+      setIsPending(true);
+      const response = await updateUserAction(formData);
+
+      if (response.error) {
+        return toast.error(response.error || "Something went wrong in saving");
+      }
+
+      toast.success("User updated successfully");
+      await mutate();
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setIsPending(false);
     }
-  }, [state]);
+  };
 
   const filteredManagers = React.useMemo(
     () => manager?.filter((m) => m.department === formData.department),
@@ -92,10 +100,7 @@ export function UpdateUserDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
-        <form
-          action={updateUser}
-          className="flex flex-col gap-4 px-4 py-2 overflow-y-auto"
-        >
+        <form className="flex flex-col gap-4 px-4 py-2 overflow-y-auto">
           {/* Id section */}
           <input type="hidden" name="id" value={user.id} />
 
@@ -290,7 +295,12 @@ export function UpdateUserDrawer({
           </div>
 
           <DrawerFooter className="px-0 pb-0 flex flex-col gap-2 mt-4">
-            <Button type="submit" disabled={pending} className="w-full">
+            <Button
+              type="submit"
+              disabled={pending}
+              className="w-full"
+              onClick={handleUpdate}
+            >
               {pending ? "Saving..." : "Update User"}
             </Button>
             <DrawerClose asChild>

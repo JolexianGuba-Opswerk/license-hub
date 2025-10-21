@@ -194,13 +194,15 @@ export async function processRequestItemAction({
       let parentStatus: "ASSIGNING" | "DENIED" | "REVIEWING" | "PENDING";
 
       if (statuses.some((s) => s === "DENIED")) {
-        parentStatus = "DENIED";
+        parentStatus = "REVIEWING";
       } else if (statuses.every((s) => s === "APPROVED")) {
         parentStatus = "ASSIGNING";
       } else if (statuses.every((s) => s === "PENDING")) {
         parentStatus = "PENDING";
       } else if (statuses.every((s) => s === "DENIED")) {
         parentStatus = "DENIED";
+      } else if (statuses.some((s) => s === "APPROVED")) {
+        parentStatus = "ASSIGNING";
       } else {
         parentStatus = "REVIEWING";
       }

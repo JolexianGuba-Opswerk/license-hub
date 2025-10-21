@@ -10,18 +10,10 @@ import {
   createUserSchema,
   updateUserSchema,
 } from "@/lib/schemas/user-management/user";
-import { revalidatePath, revalidateTag } from "next/cache";
+
 import { UserManagementPermission } from "@/lib/permissions/admin/permission";
 
-type CreateUserState = {
-  success: boolean;
-  error?: string;
-};
-
-export async function createUserAction(
-  prevState: CreateUserState,
-  formData: FormData
-) {
+export async function createUserAction(formData) {
   // Permission Check section
   const isPermitted = await UserManagementPermission();
   if (!isPermitted.success || !isPermitted.data) {
@@ -29,7 +21,7 @@ export async function createUserAction(
   }
 
   // ZOD validation check
-  const userData = createUserSchema.safeParse(Object.fromEntries(formData));
+  const userData = createUserSchema.safeParse(formData);
   if (!userData.success) {
     return {
       success: false,
@@ -42,18 +34,11 @@ export async function createUserAction(
   if (response.error || !response.data)
     return { success: false, error: response.error ?? "Something went wrong!" };
 
-  //Todo: Add push notification to account owners/managers
-
-  revalidateTag("user-management-table");
-  revalidatePath("/user-management");
-  return { success: true };
+  return { success: true, error: "" };
 }
 
 // Update user in database and Supabase Auth
-export async function updateUserAction(
-  prevState: CreateUserState,
-  formData: FormData
-) {
+export async function updateUserAction(formData) {
   // Update User Permission Check
   const isPermitted = await UserManagementPermission();
   if (!isPermitted.success || !isPermitted.data) {
@@ -61,7 +46,7 @@ export async function updateUserAction(
   }
 
   // Validate form data using Zod
-  const userData = updateUserSchema.safeParse(Object.fromEntries(formData));
+  const userData = updateUserSchema.safeParse(formData);
 
   if (!userData.success) {
     console.log(userData.error);
@@ -73,13 +58,11 @@ export async function updateUserAction(
 
   // Update DAL
   const response = await updateUser(userData.data);
-  if (response.error || !response.data) {
+  if (response.error) {
+    console.log(response.error);
     return { success: false, error: response.error ?? "Something went wrong!" };
   }
 
-  // Revalidate cache
-  revalidateTag("user-management-table");
-  revalidatePath("/user-management");
   return { success: true };
 }
 
@@ -90,7 +73,7 @@ export async function deleteUserAction(userId: string) {
     return { success: false, error: isPermitted.error ?? "Unathorized" };
   }
   const response = await deleteUser(userId);
-  if (response.error || !response.data) {
+  if (response.error) {
     return { success: false, error: response.error ?? "Something went wrong!" };
   }
   return { success: true };

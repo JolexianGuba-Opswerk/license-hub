@@ -233,7 +233,7 @@ model Notification {
   url       String?
   read      Boolean          @default(false)
   createdAt DateTime         @default(now())
-  user      UserDetails      @relation(fields: [userId], references: [id])
+  user      UserDetails      @relation(fields: [userId], references: [id],onDelete: Cascade)
 }
 
 model AuditLog {
